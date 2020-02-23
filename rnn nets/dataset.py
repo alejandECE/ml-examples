@@ -1,3 +1,4 @@
+# Created by Luis Alejandro (alejand@umich.edu)
 import tensorflow as tf
 import numpy as np
 from typing import Tuple

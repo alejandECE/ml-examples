@@ -1,5 +1,7 @@
+# Created by Luis Alejandro (alejand@umich.edu)
 import re
 import time
+import os
 import tensorflow as tf
 from utils import unicode_to_ascii
 
@@ -111,7 +113,7 @@ class Decoder(tf.keras.layers.Layer):
       return self.dense(x), hidden, cell
 
 
-class Translator(tf.keras.Model):
+class Translator:
   def __init__(self,
                source_vocab: dict,
                target_vocab: dict,
@@ -122,14 +124,23 @@ class Translator(tf.keras.Model):
                source_embedding_matrix=None,
                target_embedding_matrix=None,
                max_output_length=100,
-               name='Translator',
-               **kwargs):
-    super(Translator, self).__init__(name=name, **kwargs)
+               restore=True):
+    # Encoder/Decoder layers
     self.encoder = Encoder(source_latent_dim, source_vocab, source_embedding_dim, source_embedding_matrix)
     self.decoder = Decoder(target_latent_dim, target_vocab, target_embedding_dim, target_embedding_matrix)
+    # Optimizer and loss function
     self.loss_fcn = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=False)
     self.optimizer = tf.keras.optimizers.Adam()
+    # Maximum length of the output sequence (use at inference time)
     self.max_output_length = max_output_length
+    # Checkpoint configuration
+    checkpoint_dir = './checkpoints'
+    self.checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt")
+    self.checkpoint = tf.train.Checkpoint(optimizer=self.optimizer,
+                                          encoder=self.encoder,
+                                          decoder=self.decoder)
+    if restore:
+      self.checkpoint.restore(tf.train.latest_checkpoint(checkpoint_dir))
 
   @tf.function
   def get_sparse_positives(self, y_true, y_pred):
@@ -139,17 +150,23 @@ class Translator(tf.keras.Model):
   @tf.function
   def train_step(self, sources, targets):
     with tf.GradientTape() as tape:
-      # Forward pass of the model
-      predictions = self.call(sources, targets)
+      # Init encoder state
+      initial = tf.zeros((sources.shape[0], self.encoder.latent_size))
+      # Computes thought vector using the encoder (represented as the hidden and cell state)
+      _, hidden, cell = self.encoder(sources, [initial, initial])
+      # Teacher forcing (by passing the target as input removing <end> from it)
+      predictions = self.decoder(targets[:, :-1], [hidden, cell], training=True)
       # Computes loss in batch
       batch_loss = self.loss_fcn(targets[:, 1:], predictions)
-      # Determine gradients
+
+    # Determines gradients
     variables = self.encoder.trainable_variables + self.decoder.trainable_variables
     gradients = tape.gradient(batch_loss, variables)
     # Updates params
     self.optimizer.apply_gradients(zip(gradients, variables))
-    # Determine true and false positives
+    # Determines true and false positives
     batch_positives, batch_samples = self.get_sparse_positives(targets[:, 1:], predictions)
+
     return batch_loss, batch_positives, batch_samples
 
   def train(self, epochs: int, dataset: tf.data.Dataset) -> None:
@@ -160,11 +177,14 @@ class Translator(tf.keras.Model):
         epoch_positives = 0
         epoch_samples = 0
         for batch, (sources, targets) in enumerate(dataset):
-          # Computes epoch loss
+          # Calls model
           batch_loss, batch_positives, batch_samples = self.train_step(sources, targets)
+          # Update loss and accuracy data for logging
           epoch_loss += batch_loss
           epoch_positives += batch_positives
           epoch_samples += batch_samples
+
+        # Outputs log info
         end = time.perf_counter()
         print('Epoch {} out of {} complete ({:.2f} secs) -- Loss: {:.4f} -- Accuracy: {:.2f}'.format(
           epoch + 1,
@@ -174,27 +194,28 @@ class Translator(tf.keras.Model):
           epoch_positives / epoch_samples
         ))
 
+        # Save checkpoint every two epochs
+        if (epoch + 1) % 10 == 0:
+          print('Creating intermediate checkpoint!')
+          self.checkpoint.save(file_prefix=self.checkpoint_prefix)
 
-  def call(self, sources, targets=None):
-    # Prediction
-    if targets is None:
-      output = []
-      _, hidden, cell = self.encoder(sources)
-      # Creates the <start> token to give the decoder first
-      target = tf.expand_dims([self.decoder.vocab[b'<start>']], 0)
-      for i in range(self.max_output_length):
-        prediction, hidden, cell = self.decoder(target, [hidden, cell])
-        word = tf.math.argmax(tf.squeeze(prediction)).numpy()
-        if self.decoder.vocab[b'<end>'] == word:
-          break
-        output.append(word)
-        target = tf.expand_dims([word], 0)
-      return output
-    else:
-      # Init encoder state
-      initial = tf.zeros((sources.shape[0], self.encoder.latent_size))
-      # Computes thought vector using the encoder (represented as the hidden and cell state)
-      _, hidden, cell = self.encoder(sources, [initial,initial])
-      # Teacher forcing (by passing the target as input removing <end> from it)
-      predictions = self.decoder(targets[:, :-1], [hidden, cell], training=True)
-      return predictions
+      # Save weights after training is done
+      print('Creating final checkpoint!')
+      self.checkpoint.save(file_prefix=self.checkpoint_prefix)
+
+  def translate(self, sources):
+    # Prediction (indexes of words)
+    output = []
+    _, hidden, cell = self.encoder(sources)
+    # Creates the <start> token to give the decoder first
+    target = tf.expand_dims([self.decoder.vocab[b'<start>']], 0)
+    # Generates next word
+    for i in range(self.max_output_length):
+      prediction, hidden, cell = self.decoder(target, [hidden, cell])
+      word = tf.math.argmax(tf.squeeze(prediction)).numpy()
+      # If word is <end> token finish
+      if self.decoder.vocab[b'<end>'] == word:
+        break
+      output.append(word)
+      target = tf.expand_dims([word], 0)
+    return output
