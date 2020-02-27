@@ -41,7 +41,8 @@ class DatasetBuilder:
   Supporting class to generate sequences of words for both input and outputs from text files
   """
 
-  def __init__(self, files, separator='\t', preprocessors=(None, None), batch_size=64, buffer_size=5000, max_obs=None):
+  def __init__(self, files, separator='\t', preprocessors=(None, None), batch_size=64, buffer_size=5000,
+               max_obs=None, test_obs=None):
     """
     Creates a seq2seq dataset builder that takes a list of files and returns a dataset of encoded sequences
 
@@ -53,6 +54,7 @@ class DatasetBuilder:
     :param batch_size: Batch size used in the dataset
     :param buffer_size: Buffer size used to shuffle the observations in the dataset
     :param max_obs: Max number of observations to consider from files
+    :param test_obs: Observations in the test set
     """
     self.files = files
     self.source_tokenizer = None
@@ -62,6 +64,7 @@ class DatasetBuilder:
     self.batch_size = batch_size
     self.buffer_size = buffer_size
     self.max_obs = max_obs
+    self.test_obs = test_obs
 
   def tf_preprocess_wrapper(self, text: tf.Tensor) -> Tuple[tf.Tensor, tf.Tensor]:
     """
@@ -106,12 +109,14 @@ class DatasetBuilder:
   def build(self, logged=False) -> tf.data.Dataset:
     self.source_tokenizer = Tokenizer()
     self.target_tokenizer = Tokenizer()
+
     # Creates from the files
     dataset = tf.data.TextLineDataset(self.files)
     if self.max_obs is not None:
       dataset = dataset.take(self.max_obs)
     if logged:
-      print('After files have been passed the dataset element spec is: \n', dataset.element_spec)
+      print('After reading files the dataset element spec is: \n', dataset.element_spec)
+
     # Preprocess each line
     dataset = dataset.map(self.tf_preprocess_wrapper).cache()
     if logged:
@@ -120,10 +125,12 @@ class DatasetBuilder:
       print('\nSome samples from dataset (at this point):')
       for element in dataset.take(5):
         print(element[0].numpy(), element[1].numpy())
+
     # Generate tokenizers (traverse entire dataset)
     for source_sentence, target_sentence in dataset:
       self.source_tokenizer.update(source_sentence.numpy())
       self.target_tokenizer.update(target_sentence.numpy())
+
     # Encode each sequence
     dataset = dataset.map(lambda source, target: self.tf_encode_wrapper(source, target))
     if logged:
@@ -131,15 +138,27 @@ class DatasetBuilder:
       print('\nSome samples from dataset (at this point):')
       for element in dataset.take(5):
         print(element[0].numpy(), element[1].numpy())
-    # Shuffle the dataset
-    dataset = dataset.shuffle(self.buffer_size)
-    # Create padded batches of sequences (same length).
-    dataset = dataset.padded_batch(self.batch_size,
-                                   ([self.source_tokenizer.max_seq, ],
-                                    [self.target_tokenizer.max_seq, ])).prefetch(1)
+
+    # Split train/test if needed
+    if self.test_obs is not None:
+      dataset = dataset.shuffle(self.buffer_size, reshuffle_each_iteration=False)
+      test = dataset.take(self.test_obs)
+      train = dataset.skip(self.test_obs)
+    else:
+      train = dataset
+      test = dataset.skip(-1)
+
+    # Shuffle the dataset and create padded batches of sequences (same length).
+    train = train.shuffle(self.buffer_size).padded_batch(
+      self.batch_size,
+      ([self.source_tokenizer.max_seq, ],
+       [self.target_tokenizer.max_seq, ])).prefetch(1)
+    test = test.padded_batch(self.batch_size, ([self.source_tokenizer.max_seq, ],
+                                               [self.target_tokenizer.max_seq, ])).prefetch(1)
     if logged:
-      print('\nFinal dataset element spec is: \n', dataset.element_spec)
-      print('\nSome samples from the final dataset:')
-      for element in dataset.take(5):
+      print('\nFinal dataset element spec is: \n', train.element_spec)
+      print('\nSome samples from the final dataset (training set):')
+      for element in train.take(5):
         print(element[0].numpy()[0], element[1].numpy()[0])
-    return dataset
+
+    return train, test

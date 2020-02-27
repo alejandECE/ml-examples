@@ -148,6 +148,21 @@ class Translator:
     return tf.reduce_sum(tf.cast(positives, tf.int32)), y_true.shape[0] * y_true.shape[1]
 
   @tf.function
+  def test_step(self, sources, targets):
+    # Init encoder state
+    initial = tf.zeros((sources.shape[0], self.encoder.latent_size))
+    # Computes thought vector using the encoder (represented as the hidden and cell state)
+    _, hidden, cell = self.encoder(sources, [initial, initial])
+    # Passing the target as input removing <end> from it)
+    predictions = self.decoder(targets[:, :-1], [hidden, cell], training=True)
+    # Computes loss in batch
+    batch_loss = self.loss_fcn(targets[:, 1:], predictions)
+    # Determines true and false positives
+    batch_positives, batch_samples = self.get_sparse_positives(targets[:, 1:], predictions)
+
+    return batch_loss, batch_positives, batch_samples
+
+  @tf.function
   def train_step(self, sources, targets):
     with tf.GradientTape() as tape:
       # Init encoder state
@@ -169,32 +184,47 @@ class Translator:
 
     return batch_loss, batch_positives, batch_samples
 
-  def train(self, epochs: int, dataset: tf.data.Dataset) -> None:
+  def train(self, epochs: int, train: tf.data.Dataset, test: tf.data.Dataset) -> None:
     with tf.device('gpu:0'):
       for epoch in range(epochs):
+        # Performing a training epoch
         start = time.perf_counter()
-        epoch_loss = 0
-        epoch_positives = 0
-        epoch_samples = 0
-        for batch, (sources, targets) in enumerate(dataset):
+        train_loss = 0
+        train_positives = 0
+        train_samples = 0
+        for batch, (sources, targets) in enumerate(train):
           # Calls model
           batch_loss, batch_positives, batch_samples = self.train_step(sources, targets)
           # Update loss and accuracy data for logging
-          epoch_loss += batch_loss
-          epoch_positives += batch_positives
-          epoch_samples += batch_samples
-
-        # Outputs log info
-        end = time.perf_counter()
-        print('Epoch {} out of {} complete ({:.2f} secs) -- Loss: {:.4f} -- Accuracy: {:.2f}'.format(
+          train_loss += batch_loss
+          train_positives += batch_positives
+          train_samples += batch_samples
+        # Logs training results
+        print('Epoch {} out of {} complete ({:.2f} secs) -- Train Loss: {:.4f} -- Train Acc: {:.2f}'.format(
           epoch + 1,
           epochs,
-          end - start,
-          epoch_loss / (batch + 1),
-          epoch_positives / epoch_samples
-        ))
-
-        # Save checkpoint every two epochs
+          time.perf_counter() - start,
+          train_loss / (batch + 1),
+          train_positives / train_samples
+        ), end='')
+        # Evaluates performance on test set after epoch training
+        test_loss = 0
+        test_positives = 0
+        test_samples = 0
+        for batch, (sources, targets) in enumerate(test):
+          # Calls model
+          batch_loss, batch_positives, batch_samples = self.test_step(sources, targets)
+          # Update loss and accuracy data for logging
+          test_loss += batch_loss
+          test_positives += batch_positives
+          test_samples += batch_samples
+        # Logs test performance
+        if test_samples > 0:
+          print(' -- Test Loss: {:.4f} -- Test Acc: {:.2f}'.format(
+            test_loss / (batch + 1),
+            test_positives / test_samples
+          ))
+        # Save checkpoint every ten epochs
         if (epoch + 1) % 10 == 0:
           print('Creating intermediate checkpoint!')
           self.checkpoint.save(file_prefix=self.checkpoint_prefix)
