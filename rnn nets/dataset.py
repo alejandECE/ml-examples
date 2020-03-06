@@ -41,7 +41,7 @@ class DatasetBuilder:
   Supporting class to generate sequences of words for both input and outputs from text files
   """
 
-  def __init__(self, files, separator='\t', preprocessors=(None, None), batch_size=64, buffer_size=5000,
+  def __init__(self, files, separator='\t', preprocessors=(None, None), batch_size=64, buffer_size=10000,
                max_obs=None, test_obs=None):
     """
     Creates a seq2seq dataset builder that takes a list of files and returns a dataset of encoded sequences
