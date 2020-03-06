@@ -335,7 +335,7 @@ class Translator:
       print('Creating final checkpoint!')
       self.checkpoint.save(file_prefix=self.checkpoint_prefix)
 
-  def translate(self, sources):
+  def translate(self, sources, return_attention=False):
     # Prediction (indexes of words)
     output = []
     options = self.encoder(sources)
@@ -351,10 +351,13 @@ class Translator:
       prediction, state, attention = self.decoder(target, options, state)
       word = tf.math.argmax(tf.squeeze(prediction)).numpy()
       matrix.append(attention)
+      output.append(word)
       # If word is <end> token finish
       if self.decoder.vocab[b'<end>'] == word:
         break
-      output.append(word)
       target = tf.expand_dims([word], 0)
 
-    return output, tf.concat(matrix, 0)
+    if return_attention:
+      return output, tf.squeeze(tf.concat(matrix, 0)).numpy()
+    else:
+      return output

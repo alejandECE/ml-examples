@@ -149,12 +149,10 @@ class DatasetBuilder:
       test = dataset.skip(-1)
 
     # Shuffle the dataset and create padded batches of sequences (same length).
-    train = train.shuffle(self.buffer_size).padded_batch(
-      self.batch_size,
-      ([self.source_tokenizer.max_seq, ],
-       [self.target_tokenizer.max_seq, ])).prefetch(1)
-    test = test.padded_batch(self.batch_size, ([self.source_tokenizer.max_seq, ],
-                                               [self.target_tokenizer.max_seq, ])).prefetch(1)
+    padded_shapes = ([self.source_tokenizer.max_seq, ], [self.target_tokenizer.max_seq, ])
+    padded_values = (self.source_tokenizer.word_to_index[b'<end>'], self.target_tokenizer.word_to_index[b'<end>'])
+    train = train.shuffle(self.buffer_size).padded_batch(self.batch_size, padded_shapes, padded_values).prefetch(1)
+    test = test.padded_batch(self.batch_size, padded_shapes, padded_values).prefetch(1)
     if logged:
       print('\nFinal dataset element spec is: \n', train.element_spec)
       print('\nSome samples from the final dataset (training set):')
