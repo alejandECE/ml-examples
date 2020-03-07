@@ -3,7 +3,10 @@ import re
 import time
 import os
 import tensorflow as tf
+import numpy as np
 from utils import unicode_to_ascii
+import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
 
 
 def preprocess(tensor: tf.Tensor) -> str:
@@ -30,11 +33,33 @@ def preprocess(tensor: tf.Tensor) -> str:
   return '<start> ' + sentence + ' <end>'
 
 
+def plot_attention(attention: np.ndarray, source: list, target: list, source_vocab: list, target_vocab: list) -> None:
+  """
+  Creates attention plot
+
+  :param attention: Attention weights matrix [input_seq_length, output_seq_length]
+  :param source: Input sequence
+  :param target: Output sequence
+  :param source_vocab: Input vocabulary
+  :param target_vocab: Output vocabulary
+  """
+  fig = plt.figure(figsize=(5, 5))
+  ax = fig.add_subplot(1, 1, 1)
+  ax.matshow(attention, cmap='gray')
+  ax.set_xticklabels([''] + [source_vocab[word].decode() for word in source], rotation=90)
+  ax.set_yticklabels([''] + [target_vocab[word].decode() for word in target])
+  ax.xaxis.set_major_locator(ticker.MultipleLocator(1))
+  ax.yaxis.set_major_locator(ticker.MultipleLocator(1))
+  ax.grid()
+  plt.show()
+
+
 class Encoder(tf.keras.layers.Layer):
   """
   Encoder layer that contains an Embedding layer followed by a Bidirectional LSTM Layer. The latter returns a sequence
   of all hidden states to be utilize by a Decoder layer using an Attention mechanism.
   """
+
   def __init__(self, latent_size: int,
                vocab: dict,
                embedding_size=None,
@@ -82,6 +107,7 @@ class Attention(tf.keras.layers.Layer):
   Attention layer. It receives the current position encoding (meaning what point in the output sequence we are
   generating) and all possible options to pay "attention" to. Uses Bahdanau's additive style for the score.
   """
+
   def __init__(self, units, name='Attention', **kwargs):
     super(Attention, self).__init__(name=name, **kwargs)
 
@@ -123,6 +149,7 @@ class Decoder(tf.keras.layers.Layer):
   in the output sequence. Uses context vector concatenated with true previous word embedding (teacher forcing) as the
   input of a LSTM layer. The latter has initial state of all zeros.
   """
+
   def __init__(self,
                latent_size: int,
                attention_size: int,
