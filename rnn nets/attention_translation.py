@@ -283,57 +283,56 @@ class Translator:
     return batch_loss, batch_positives, batch_samples
 
   def train(self, epochs: int, train: tf.data.Dataset, test: tf.data.Dataset) -> None:
-    with tf.device('gpu:0'):
-      for epoch in range(epochs):
-        # Performing a training epoch
-        start = time.perf_counter()
-        train_loss = 0
-        train_positives = 0
-        train_samples = 0
-        for batch, (sources, targets) in enumerate(train):
-          # Calls model
-          batch_loss, batch_positives, batch_samples = self.train_step(sources, targets)
-          # Update loss and accuracy data for logging
-          train_loss += batch_loss
-          train_positives += batch_positives
-          train_samples += batch_samples
+    for epoch in range(epochs):
+      # Performing a training epoch
+      start = time.perf_counter()
+      train_loss = 0
+      train_positives = 0
+      train_samples = 0
+      for batch, (sources, targets) in enumerate(train):
+        # Calls model
+        batch_loss, batch_positives, batch_samples = self.train_step(sources, targets)
+        # Update loss and accuracy data for logging
+        train_loss += batch_loss
+        train_positives += batch_positives
+        train_samples += batch_samples
 
-        # Logs training results
-        print('Epoch {} out of {} complete ({:.2f} secs) -- Train Loss: {:.4f} -- Train Acc: {:.2f}'.format(
-          epoch + 1,
-          epochs,
-          time.perf_counter() - start,
-          train_loss / (batch + 1),
-          train_positives / train_samples
-        ), end='')
+      # Logs training results
+      print('Epoch {} out of {} complete ({:.2f} secs) -- Train Loss: {:.4f} -- Train Acc: {:.2f}'.format(
+        epoch + 1,
+        epochs,
+        time.perf_counter() - start,
+        train_loss / (batch + 1),
+        train_positives / train_samples
+      ), end='')
 
-        # Evaluates performance on test set after epoch training
-        test_loss = 0
-        test_positives = 0
-        test_samples = 0
-        for batch, (sources, targets) in enumerate(test):
-          # Calls model
-          batch_loss, batch_positives, batch_samples = self.test_step(sources, targets)
-          # Update loss and accuracy data for logging
-          test_loss += batch_loss
-          test_positives += batch_positives
-          test_samples += batch_samples
+      # Evaluates performance on test set after epoch training
+      test_loss = 0
+      test_positives = 0
+      test_samples = 0
+      for batch, (sources, targets) in enumerate(test):
+        # Calls model
+        batch_loss, batch_positives, batch_samples = self.test_step(sources, targets)
+        # Update loss and accuracy data for logging
+        test_loss += batch_loss
+        test_positives += batch_positives
+        test_samples += batch_samples
 
-        # Logs test performance
-        if test_samples > 0:
-          print(' -- Test Loss: {:.4f} -- Test Acc: {:.2f}'.format(
-            test_loss / (batch + 1),
-            test_positives / test_samples
-          ))
+      # Logs test performance
+      if test_samples > 0:
+        print(' -- Test Loss: {:.4f} -- Test Acc: {:.2f}'.format(
+          test_loss / (batch + 1),
+          test_positives / test_samples
+        ))
 
-        # Save checkpoint every ten epochs
-        if (epoch + 1) % 10 == 0:
-          print('Creating intermediate checkpoint!')
-          self.checkpoint.save(file_prefix=self.checkpoint_prefix)
+      # Save checkpoint every ten epochs
+      if (epoch + 1) % 10 == 0:
+        print('Creating intermediate checkpoint!')
+        self.checkpoint.save(file_prefix=self.checkpoint_prefix)
 
-      # Save weights after training is done
-      print('Creating final checkpoint!')
-      self.checkpoint.save(file_prefix=self.checkpoint_prefix)
+    # Save weights after training is done
+    print('Creating final checkpoint!')
+    self.checkpoint.save(file_prefix=self.checkpoint_prefix)
 
   def translate(self, sources, return_attention=False):
     # Prediction (indexes of words)
@@ -346,11 +345,11 @@ class Translator:
     # Generates next word
     zeros = tf.zeros([1, self.decoder.latent_size])
     state = [zeros, zeros]
-    matrix = []
+    attention = []
     for i in range(self.max_output_length):
-      prediction, state, attention = self.decoder(target, options, state)
+      prediction, state, weights = self.decoder(target, options, state)
       word = tf.math.argmax(tf.squeeze(prediction)).numpy()
-      matrix.append(attention)
+      attention.append(weights)
       output.append(word)
       # If word is <end> token finish
       if self.decoder.vocab[b'<end>'] == word:
@@ -358,6 +357,6 @@ class Translator:
       target = tf.expand_dims([word], 0)
 
     if return_attention:
-      return output, tf.squeeze(tf.concat(matrix, 0)).numpy()
+      return output, tf.squeeze(tf.concat(attention, 0)).numpy()
     else:
       return output
