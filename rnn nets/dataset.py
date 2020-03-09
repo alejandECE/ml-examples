@@ -41,8 +41,7 @@ class DatasetBuilder:
   Supporting class to generate sequences of words for both input and outputs from text files
   """
 
-  def __init__(self, files, separator='\t', preprocessors=(None, None), batch_size=64, buffer_size=10000,
-               max_obs=None, test_obs=None):
+  def __init__(self, files, separator='\t', preprocessors=(None, None), batch_size=64, max_obs=None, test_obs=None):
     """
     Creates a seq2seq dataset builder that takes a list of files and returns a dataset of encoded sequences
 
@@ -62,8 +61,8 @@ class DatasetBuilder:
     self.separator = separator
     self.preprocessors = preprocessors
     self.batch_size = batch_size
-    self.buffer_size = buffer_size
     self.max_obs = max_obs
+    self.buffer_size = max_obs
     self.test_obs = test_obs
 
   def tf_preprocess_wrapper(self, text: tf.Tensor) -> Tuple[tf.Tensor, tf.Tensor]:
@@ -71,8 +70,8 @@ class DatasetBuilder:
     Wraps the pre-processing function for execution in graph mode
 
     :param text: A tf.string Tensor containing a line of text from a file.
-    :return: A tuple of tensor where the first element is the pre-processed source sequence
-    tensor and the second is the pre-processed target sequence tensor.
+    :return: A tuple of tensor where the first element is the pre-processed source string sequence
+    tensor and the second is the pre-processed target string sequence tensor.
     """
     text = tf.strings.split(text, sep=self.separator)
     if self.preprocessors[0] is not None:
@@ -118,7 +117,7 @@ class DatasetBuilder:
       print('After reading files the dataset element spec is: \n', dataset.element_spec)
 
     # Preprocess each line
-    dataset = dataset.map(self.tf_preprocess_wrapper).cache()
+    dataset = dataset.map(self.tf_preprocess_wrapper)
     if logged:
       print('\nAfter preprocessing files the dataset element spec is: \n', dataset.element_spec)
       # Print some example tensors
@@ -127,12 +126,14 @@ class DatasetBuilder:
         print(element[0].numpy(), element[1].numpy())
 
     # Generate tokenizers (traverse entire dataset)
+    self.source_tokenizer.update([b'<unknown>'])
+    self.target_tokenizer.update([b'<unknown>'])
     for source_sentence, target_sentence in dataset:
       self.source_tokenizer.update(source_sentence.numpy())
       self.target_tokenizer.update(target_sentence.numpy())
 
     # Encode each sequence
-    dataset = dataset.map(lambda source, target: self.tf_encode_wrapper(source, target))
+    dataset = dataset.map(lambda source, target: self.tf_encode_wrapper(source, target)).cache()
     if logged:
       print('\nAfter encoding sequences the dataset element spec is: \n', dataset.element_spec)
       print('\nSome samples from dataset (at this point):')
@@ -151,10 +152,12 @@ class DatasetBuilder:
     # Shuffle the dataset and create padded batches of sequences (same length).
     padded_shapes = ([self.source_tokenizer.max_seq, ],
                      [self.target_tokenizer.max_seq, ])
-    padded_values = (self.source_tokenizer.word_to_index[b'<end>'],
-                     self.target_tokenizer.word_to_index[b'<end>'])
-    train = train.shuffle(self.buffer_size).padded_batch(self.batch_size, padded_shapes, padded_values).prefetch(1)
-    test = test.padded_batch(self.batch_size, padded_shapes, padded_values).prefetch(1)
+    padded_values = (self.source_tokenizer.word_to_index[b'<unknown>'],
+                     self.target_tokenizer.word_to_index[b'<unknown>'])
+    train = train.shuffle(self.buffer_size).padded_batch(self.batch_size,
+                                                         padded_shapes,
+                                                         padded_values).prefetch(AUTOTUNE)
+    test = test.padded_batch(self.batch_size, padded_shapes, padded_values).prefetch(AUTOTUNE)
     if logged:
       print('\nFinal dataset element spec is: \n', train.element_spec)
       print('\nSome samples from the final dataset (training set):')
