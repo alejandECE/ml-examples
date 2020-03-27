@@ -194,8 +194,6 @@ class Translator:
     :return: Batch loss
     """
     loss = 0
-    positives = 0
-    samples = 0
     if masking:
       # We have to go one step at a time since observations might have different sequence length
       for step in range(0, y_true.shape[1]):
@@ -257,7 +255,6 @@ class Translator:
     :param epochs: Number of epochs
     :param train: Training dataset
     :param test: Test dataset
-    :param verbose: Whether or not to compute test performance
     """
     for epoch in range(epochs):
       # Performing a training epoch
@@ -270,9 +267,9 @@ class Translator:
       for batch, (sources, targets) in enumerate(train):
         # Calls model
         batch_loss, expected, predicted = self.train_step(sources, targets)
-        # Update loss and accuracy data for logging
+        # Update loss for logging
         train_loss += batch_loss
-        # Computes BLEU score necessary data
+        # Updates data for BLEU score computation
         matches, possible, predicted_length, expected_length = get_counts(
           expected.numpy(), predicted.numpy(), ending_token=self.decoder.vocab[b'<end>']
         )
@@ -302,9 +299,9 @@ class Translator:
         for batch, (sources, targets) in enumerate(test):
           # Calls model
           batch_loss, expected, predicted = self.test_step(sources, targets)
-          # Update loss and accuracy data for logging
+          # Update loss for logging
           test_loss += batch_loss
-          # Computes BLEU score necessary data
+          # Updates data for BLEU score computation
           matches, possible, predicted_length, expected_length = get_counts(
             expected.numpy(), predicted.numpy(), ending_token=self.decoder.vocab[b'<end>']
           )
@@ -372,6 +369,7 @@ class Translator:
           decoded = self.target_tokenizer.index_to_word[word].decode()
           words.append(decoded)
         print('Translation:', ' '.join(words[:-1]), end='\n\n')
+        # Updates data for BLEU score computation
         candidate = np.array(words, ndmin=2)
         matches, possible, predicted_length, expected_length = get_counts(
           candidate, reference
@@ -381,5 +379,6 @@ class Translator:
         total_predicted_length += predicted_length
         total_expected_length += expected_length
 
+    # Computes BLEU score
     bleu = get_bleu(total_matches, total_possible, total_predicted_length, total_expected_length)
     print('Bleu:', bleu)
