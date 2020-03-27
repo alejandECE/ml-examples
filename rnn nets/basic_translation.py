@@ -3,8 +3,10 @@ import re
 import time
 import os
 import tensorflow as tf
+import numpy as np
 from utils import unicode_to_ascii
 from dataset import Tokenizer
+from bleu import get_counts, get_bleu
 
 
 def preprocess(tensor: tf.Tensor) -> str:
@@ -37,6 +39,7 @@ class Encoder(tf.keras.layers.Layer):
   Encoder layer that contains an Embedding layer followed by a LSTM Layer. The latter creates a thought vector (hidden
   state) to be used by a Decoder layer.
   """
+
   def __init__(self, latent_size: int,
                vocab: dict,
                embedding_size=None,
@@ -82,6 +85,7 @@ class Decoder(tf.keras.layers.Layer):
   Decoder layer that contains an Embedding layer and a LSTM layer. We init the LSTM layer with the last hidden state of
   the Decoder layer.
   """
+
   def __init__(self,
                latent_size: int,
                vocab: dict,
@@ -134,6 +138,7 @@ class Translator:
   is used during training and a translation can be obtained for any new input. Please refer to the notebook to see how
   to use this class.
   """
+
   def __init__(self,
                source_tokenizer: Tokenizer,
                target_tokenizer: Tokenizer,
@@ -145,14 +150,12 @@ class Translator:
                target_embedding_matrix=None,
                max_output_length=100,
                restore=True,
-               masking=False,
-               verbose=True):
+               masking=False):
 
     # Stored for later use
     self.source_tokenizer = source_tokenizer
     self.target_tokenizer = target_tokenizer
     self.masking = masking
-    self.verbose = verbose
 
     # Encoder/Decoder layers
     self.encoder = Encoder(source_latent_dim,
@@ -196,20 +199,14 @@ class Translator:
     if masking:
       # We have to go one step at a time since observations might have different sequence length
       for step in range(0, y_true.shape[1]):
-        # Create a mask if the current step in the sequence is a padded word
+        # Create a mask to capture whether the current step in the sequence is a padded token
         mask = tf.logical_not(tf.equal(y_true[:, step], self.target_tokenizer.word_to_index[b'<unknown>']))
         entropy = self.entropy(y_true[:, step], y_pred[:, step, :])
         loss += tf.reduce_sum(tf.cast(mask, entropy.dtype) * entropy)
-        hits = tf.equal(y_true[:, step], tf.cast(tf.argmax(y_pred[:, step, :], axis=-1), tf.int32))
-        positives += tf.reduce_sum(tf.cast(hits, tf.int32))
-        samples += tf.reduce_sum(tf.cast(mask, tf.int32))
     else:
       loss = tf.reduce_sum(self.entropy(y_true, y_pred))
-      hits = tf.equal(y_true, tf.cast(tf.argmax(y_pred, axis=-1), tf.int32))
-      positives = tf.reduce_sum(tf.cast(hits, tf.int32))
-      samples = tf.size(y_true)
 
-    return loss, positives, samples
+    return loss
 
   @tf.function
   def test_step(self, sources, targets):
@@ -220,9 +217,10 @@ class Translator:
     predictions = self.decoder(targets[:, :-1], [hidden, cell], training=True)
 
     # Computes loss in batch (the <start> token should not be part of the expected output)
-    batch_loss, batch_positives, batch_samples = self.compute_batch_loss(targets[:, 1:], predictions, self.masking)
+    batch_loss = self.compute_batch_loss(targets[:, 1:], predictions, self.masking)
 
-    return batch_loss, batch_positives, batch_samples
+    # returns loss, expected sequence, predicted sequence
+    return batch_loss, targets[:, 1:], tf.cast(tf.argmax(predictions, axis=-1), tf.int32)
 
   @tf.function
   def train_step(self, sources, targets):
@@ -240,7 +238,7 @@ class Translator:
       predictions = self.decoder(targets[:, :-1], [hidden, cell], training=True)
 
       # Computes loss in batch (the <start> token should not be part of the expected output)
-      batch_loss, batch_positives, batch_samples = self.compute_batch_loss(targets[:, 1:], predictions, self.masking)
+      batch_loss = self.compute_batch_loss(targets[:, 1:], predictions, self.masking)
 
     # Determines gradients
     variables = self.encoder.trainable_variables + self.decoder.trainable_variables
@@ -249,66 +247,87 @@ class Translator:
     # Updates params
     self.optimizer.apply_gradients(zip(gradients, variables))
 
-    return batch_loss, batch_positives, batch_samples
+    # returns loss, expected sequence, predicted sequence
+    return batch_loss, targets[:, 1:], tf.cast(tf.argmax(predictions, axis=-1), tf.int32)
 
-  def train(self, epochs: int, train: tf.data.Dataset, test: tf.data.Dataset) -> None:
+  def train(self, epochs: int, train: tf.data.Dataset, test=None) -> None:
     """
-    Performs training of the translation model. It shows training/test loss and accuracy after each epoch.
+    Performs training of the translation model. It shows training/test loss and bleu score after each epoch.
 
     :param epochs: Number of epochs
     :param train: Training dataset
     :param test: Test dataset
+    :param verbose: Whether or not to compute test performance
     """
     for epoch in range(epochs):
       # Performing a training epoch
       start = time.perf_counter()
       train_loss = 0
-      train_positives = 0
-      train_samples = 0
+      train_matches = 0
+      train_possible = 0
+      train_predicted_length = 0
+      train_expected_length = 0
       for batch, (sources, targets) in enumerate(train):
         # Calls model
-        batch_loss, batch_positives, batch_samples = self.train_step(sources, targets)
+        batch_loss, expected, predicted = self.train_step(sources, targets)
         # Update loss and accuracy data for logging
         train_loss += batch_loss
-        train_positives += batch_positives
-        train_samples += batch_samples
+        # Computes BLEU score necessary data
+        matches, possible, predicted_length, expected_length = get_counts(
+          expected.numpy(), predicted.numpy(), ending_token=self.decoder.vocab[b'<end>']
+        )
+        train_matches += matches
+        train_possible += possible
+        train_predicted_length += predicted_length
+        train_expected_length += expected_length
+      # Computes BLEU score
+      bleu = get_bleu(train_matches, train_possible, train_predicted_length, train_expected_length)
 
       # Logs training results
-      print('Epoch {} out of {} complete ({:.2f} secs) -- Train Loss: {:.4f} -- Train Acc: {:.2f}'.format(
+      print('\nEpoch {} out of {} complete ({:.2f} secs) -- Train Loss: {:.4f} -- Train Bleu: {:.2f}'.format(
         epoch + 1,
         epochs,
         time.perf_counter() - start,
         train_loss / (batch + 1),
-        train_positives / train_samples
+        bleu
       ), end='')
 
-      if self.verbose:
+      if test is not None:
         # Evaluates performance on test set after epoch training
         test_loss = 0
-        test_positives = 0
-        test_samples = 0
+        test_matches = 0
+        test_possible = 0
+        test_predicted_length = 0
+        test_expected_length = 0
         for batch, (sources, targets) in enumerate(test):
           # Calls model
-          batch_loss, batch_positives, batch_samples = self.test_step(sources, targets)
+          batch_loss, expected, predicted = self.test_step(sources, targets)
           # Update loss and accuracy data for logging
           test_loss += batch_loss
-          test_positives += batch_positives
-          test_samples += batch_samples
-
+          # Computes BLEU score necessary data
+          matches, possible, predicted_length, expected_length = get_counts(
+            expected.numpy(), predicted.numpy(), ending_token=self.decoder.vocab[b'<end>']
+          )
+          test_matches += matches
+          test_possible += possible
+          test_predicted_length += predicted_length
+          test_expected_length += expected_length
+        # Computes BLEU score
+        bleu = get_bleu(test_matches, test_possible, test_predicted_length, test_expected_length)
         # Logs test performance
-        if test_samples > 0:
-          print(' -- Test Loss: {:.4f} -- Test Acc: {:.2f}'.format(
+        if batch >= 0:
+          print(' -- Test Loss: {:.4f} -- Test Bleu: {:.2f}'.format(
             test_loss / (batch + 1),
-            test_positives / test_samples
-          ))
+            bleu
+          ), end='')
 
       # Save checkpoint every ten epochs
       if (epoch + 1) % 10 == 0:
-        print('Creating intermediate checkpoint!')
+        print('\nCreating intermediate checkpoint!')
         self.checkpoint.save(file_prefix=self.checkpoint_prefix)
 
     # Save weights after training is done
-    print('Creating final checkpoint!')
+    print('\nCreating final checkpoint!')
     self.checkpoint.save(file_prefix=self.checkpoint_prefix)
 
   def translate(self, sources):
@@ -329,6 +348,10 @@ class Translator:
     return output
 
   def evaluate(self, dataset):
+    total_matches = 0
+    total_possible = 0
+    total_predicted_length = 0
+    total_expected_length = 0
     for batch in dataset:
       for source, target in zip(batch[0], batch[1]):
         # Prepares input
@@ -341,6 +364,7 @@ class Translator:
           if decoded == '<end>':
             break
         print('Expected:', ' '.join(words[1:-1]))
+        reference = np.array(words[1:], ndmin=2)
         # Prints actual translation
         words = []
         prediction = self.translate(source)
@@ -348,3 +372,14 @@ class Translator:
           decoded = self.target_tokenizer.index_to_word[word].decode()
           words.append(decoded)
         print('Translation:', ' '.join(words[:-1]), end='\n\n')
+        candidate = np.array(words, ndmin=2)
+        matches, possible, predicted_length, expected_length = get_counts(
+          candidate, reference
+        )
+        total_matches += matches
+        total_possible += possible
+        total_predicted_length += predicted_length
+        total_expected_length += expected_length
+
+    bleu = get_bleu(total_matches, total_possible, total_predicted_length, total_expected_length)
+    print('Bleu:', bleu)
