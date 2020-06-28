@@ -1,85 +1,112 @@
-#  Created by Luis Alejandro (alejand@umich.edu)
+#  Created by Luis Alejandro (alejand@umich.edu).
+#  Copyright © Do not distribute or use without authorization from author
+
 import numpy as np
-import numpy.random as rnd
 from collections import deque
-from utils.graphs.optimizers import BasicOptimizer
-from utils.graphs.optimizers import AdagradOptimizer
-from utils.graphs.optimizers import RPropOptimizer
-from utils.graphs.optimizers import RMSPropOptimizer
-from utils.graphs.optimizers import MomentumOptimizer
-from utils.graphs.optimizers import AdamOptimizer
-from utils.graphs.minibatch import BatchProvider
+from graphs.minibatch import BatchProvider
 
 
 class Node:
+  """
+  Base class to act as node in a graph.
+  """
   def __init__(self, *args):
     # Update connections between nodes
-    self._inputs = []
+    self.inputs = []
     for node in args:
       if isinstance(node, Node):
-        self._inputs.append(node)
+        self.inputs.append(node)
       else:
-        raise Exception('Only valid core.Node objects are accepted')
-
+        raise Exception('Only valid core Node objects are accepted')
+    # Holds value of the node
     self.value = None
+    # Holds gradient of the node
     self.gradient = None
 
-  def upgradient(self, upstream):
+  def upgradient(self, upstream: np.ndarray) -> None:
+    """
+    Updates this node gradient (how much it affects the last node in the graph). Notice that it might affect it through
+    different paths, that's why the += operation.
+
+    :param upstream: Derivative of the immediate operation with respect to this node.
+    """
     if self.gradient is None:
       self.gradient = upstream
     else:
       self.gradient += upstream
 
+  def needs_backprop(self) -> bool:
+    """
+    Determines if gradient should be back-propagated to the node or not! to save time!
+    """
+    if isinstance(self, DataHolder):
+      return False
+    if isinstance(self, Param) and self.trainable is False:
+      return False
+    return True
+
 
 class Operation(Node):
+  """
+  Represents an operation node in a graph (performs some operation between its inputs).
+  Must implement the forward method (computing the node's value, aka the operation result) and
+  the backward method which computes the gradient with respect to each of the inputs.
+  """
   def __init__(self, *args):
     super().__init__(*args)
 
-  # Computes result of the operation
-  def forward(self):
-    for input_node in self._inputs:
+  def forward(self) -> None:
+    """
+    Computing the node's value, a.k.a the operation's result.
+    """
+    # Resets the gradient of each input
+    for input_node in self.inputs:
       input_node.gradient = None
 
-  # Computes local gradient of this operation with respect to its input
-  def backward(self):
+  def backward(self) -> None:
+    """
+    Computes local gradient of this operation with respect to its input and then it propagates it backward calling
+    the input nodes upgradient method.
+    """
     pass
 
 
 class DataHolder(Node):
+  """
+  Dummy class to at as dataholder. This is a leaf node (with no inputs).
+  """
   def __init__(self):
     super().__init__()
 
 
 class Param(Node):
+  """
+  Represents a parameter in the graph (it can be initialized). This is a leaf node (with no inputs).
+  """
   def __init__(self, shape, initializer='glorot_normal', trainable=True):
     super().__init__()
     self.initializer = initializer
     self.shape = shape
-    self.trainable = True
+    self.trainable = trainable
 
-  def initialize(self):
+  def initialize(self) -> None:
+    """
+    Initializes the parameter's value using the selected initialization technique.
+    """
     if self.initializer == 'uniform':
-      self.value = rnd.uniform(-0.1, 0.1, self.shape)
+      self.value = np.random.uniform(-0.1, 0.1, self.shape)
     elif self.initializer == 'glorot_uniform':
       std = np.sqrt(2.0 / sum(self.shape))
-      self.value = rnd.uniform(-std, std, self.shape)
+      self.value = np.random.uniform(-std, std, self.shape)
     elif self.initializer == 'glorot_normal':
       std = np.sqrt(2.0 / sum(self.shape))
-      self.value = rnd.normal(0, std, self.shape)
-
-
-def needs_backprop(node):
-  '''
-  Determines if gradient should be backpropagated to the node or not! to save time!
-  '''
-  if isinstance(node, DataHolder):
-    return False
-  if isinstance(node, Param) and node.trainable == False:
-    return False
-  return True
+      self.value = np.random.normal(0, std, self.shape)
 
 
 class Graph:
+  """
+  Represents a simple computational graph.
+  """
   def __init__(self):
     self.post_order = []
     self.breadth_order = []
@@ -88,10 +115,10 @@ class Graph:
     self.operation = None
 
   def build(self, operation):
-    '''
+    """
     Builds the graph storing operations in proper order for later use in the
     forward/backward passes as well as params/dataholders for minimization
-    '''
+    """
     nodes = self.get_nodes_post_order(operation)
     for node in nodes:
       if isinstance(node, Operation):
@@ -110,9 +137,9 @@ class Graph:
     return self
 
   def feed(self, feeder):
-    '''
+    """
     Link graph to data sources for later computation
-    '''
+    """
     if self.operation is None:
       raise Exception('You must build the graph feed data into it')
     for node in self.holders:
@@ -120,9 +147,9 @@ class Graph:
     return self
 
   def initialize(self):
-    '''
+    """
     Initialize all parameters in the graph
-    '''
+    """
     if self.operation is None:
       raise Exception('You must build the graph before initializing it')
     for node in self.params:
@@ -130,18 +157,18 @@ class Graph:
     return self
 
   def forward(self):
-    '''
+    """
     Runs selected operation providing parameters in the feed dictionary
-    '''
+    """
     for node in self.post_order:
       node.forward()
     return self
 
   def backward(self):
-    '''
-    Perfoms backpropagation of the gradient through the graph starting from the
-    operation selected
-    '''
+    """
+    Performs back-propagation of the gradient through the graph starting from the
+    operation selected during built.
+    """
     if self.operation.gradient is None:
       self.operation.upgradient(np.ones((np.size(self.operation.value), 1)))
 
@@ -150,10 +177,10 @@ class Graph:
     return self
 
   def get_nodes_post_order(self, operation):
-    '''
+    """
     Returns a list of nodes where operations needed by other operations are
     first in the list
-    '''
+    """
     # list
     output = deque()
     # visiting nodes in postorder
@@ -164,7 +191,7 @@ class Graph:
         node = stack.pop()
         output.append(node)
         if isinstance(node, Operation):
-          for input_node in node._inputs:
+          for input_node in node.inputs:
             stack.append(input_node)
     except:
       pass
@@ -173,9 +200,9 @@ class Graph:
     return list(output)
 
   def get_nodes_breadth_order(self, operation):
-    '''
+    """
     Returns a list of nodes in a backbard format
-    '''
+    """
     # list
     output = []
     # visiting nodes in breadth first order (using queue)
@@ -186,46 +213,33 @@ class Graph:
         node = queue.popleft()
         output.append(node)
         if isinstance(node, Operation):
-          for input_node in node._inputs:
+          for input_node in node.inputs:
             queue.append(input_node)
     except:
       pass
 
     return output
 
-  def minimize(self, optimizer='basic', batches=None, max_epochs=1000,
-               min_delta=1e-10, verbose=False, **opts):
-    '''
+  def minimize(self, optimizer, batch_size=None, max_epochs=1000,
+               min_delta=1e-10, verbose=False):
+    """
     Minimizes the output of the graph with respect to its params
-    '''
+    """
     if len(self.params) == 0:
       raise Exception('You must initialize the graph before minimizing it')
-    # Creates optimizer
-    if optimizer == 'basic':
-      optimizer = BasicOptimizer(self, **opts)
-    elif optimizer == 'adagrad':
-      optimizer = AdagradOptimizer(self, **opts)
-    elif optimizer == 'momentum':
-      optimizer = MomentumOptimizer(self, **opts)
-    elif optimizer == 'rprop':
-      optimizer = RPropOptimizer(self, **opts)
-    elif optimizer == 'rmsprop':
-      optimizer = RMSPropOptimizer(self, **opts)
-    elif optimizer == 'adam':
-      optimizer = AdamOptimizer(self, **opts)
     # Builds batch provider if needed
-    if isinstance(batches, int) or batches is None:
-      provider = BatchProvider(self, batches)
+    provider = BatchProvider(self.holders, batch_size)
     # Inits training
     epoch = 1
-    delta = min_delta
     current = np.finfo(np.float64).max
     history = []
+    optimizer.reset(self.params)
     # Training loop
     while epoch < max_epochs:
       # Batch processing
       for batch in provider:
         # Forward & backward pass
+        self.feed(batch)
         self.forward().backward()
         # Check delta
         delta = current - self.operation.value
@@ -234,13 +248,14 @@ class Graph:
         current = self.operation.value
         history.append(current)
         # Updates each param
-        for param in self.params:
-          if param.trainable:
-            optimizer.update(param)
+        gradients = [param.gradient for param in self.params]
+        optimizer.update(self.params, gradients)
       # Print progress
       if verbose:
         print('After {} epochs cost is: {}'.format(epoch, current))
       # Next epoch
       epoch += 1
-
+    # Resets graph data
+    self.feed(provider.data)
+    # Returns results
     return epoch, history
