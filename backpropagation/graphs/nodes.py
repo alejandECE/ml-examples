@@ -204,14 +204,14 @@ class leaky_relu_node(Operation):
   Computes the leaky relu function of an input of [m x n] elements
   """
 
-  def __init__(self, z, epsilon=0.01):
+  def __init__(self, z, alpha=0.1):
     super().__init__(z)
-    self.epsilon = epsilon
+    self.alpha = alpha
 
   def forward(self):
     super().forward()
     z = self.inputs[0].value.copy()
-    z[z < 0] = self.epsilon * z[z < 0]
+    z[z < 0] = self.alpha * z[z < 0]
     self.value = z
 
   def backward(self):
@@ -219,7 +219,7 @@ class leaky_relu_node(Operation):
     if self.inputs[0].needs_backprop():
       z = self.inputs[0].value.reshape(-1, 1)
       upstream = self.gradient.copy()
-      upstream[z <= 0] = self.epsilon * upstream[z <= 0]
+      upstream[z <= 0] = self.alpha * upstream[z <= 0]
       self.inputs[0].upgradient(upstream)
 
 
