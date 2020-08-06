@@ -193,8 +193,8 @@ def create_jobs_data(version: str, jobs: int, dataflow_runner=False, load=None):
 # Creates pipeline options according to runner selected
 def create_pipeline_options(job, workers, dataflow_runner=False):
   # Allowed dataflow regions
-  regions = ['us-west1', 'us-central1', 'us-east4', 'northamerica-northeast1', 'us-east1', 'europe-west2',
-             'europe-west1', 'europe-west4']
+  regions = ['us-west1', 'us-central1', 'us-east4', 'us-east1', 'europe-west2',
+             'europe-west1', 'europe-west4', 'northamerica-northeast1']
   if dataflow_runner:
     return PipelineOptions([
       '--runner=DataflowRunner',

@@ -6,7 +6,7 @@ import pathlib
 import tensorflow as tf
 import matplotlib.pyplot as plt
 from matplotlib import patches
-import coco_localization_tfrecords_generator as loc
+import stanford_dogs_localization_tfrecords_generator as loc
 
 # Constants
 BUFFER_SIZE = 1000
@@ -33,28 +33,25 @@ if __name__ == '__main__':
   # Creates base dataset from tfrecords
   dataset = tf.data.TFRecordDataset(paths).map(parse_localization_example,
                                                num_parallel_calls=tf.data.experimental.AUTOTUNE)
-  dogs_ds = dataset.filter(lambda image, label, bbox: tf.equal(label, 'dog')).shuffle(BUFFER_SIZE)
-  other_ds = dataset.filter(lambda image, label, bbox: tf.logical_not(tf.equal(label, 'dog'))).shuffle(BUFFER_SIZE)
-  mixed_ds = dogs_ds.take(5).concatenate(other_ds.take(4))
+  dataset = dataset.shuffle(BUFFER_SIZE)
   # Plots nine images
   fig, axes = plt.subplots(3, 3)
   fig.set_tight_layout(tight=0.1)
   axes = axes.ravel()
   # Reads info
-  for i, (image, label, bbox) in mixed_ds.enumerate():
+  for i, (image, label, bbox) in dataset.take(9).enumerate():
     # Plots corresponding image
     image_height, image_width, image_depth = image.shape
     axes[i].imshow(image.numpy())
     # Plots bounding box
-    if tf.equal(label, 'dog'):
-      box = loc.BBox(*bbox.numpy())
-      patch = patches.Rectangle((box.x * image_width, box.y * image_height), box.width * image_width,
-                                box.height * image_height,
-                                edgecolor='red',
-                                facecolor='none',
-                                alpha=0.3,
-                                lw=2)
-      axes[i].add_patch(patch)
+    box = loc.BBox(*bbox.numpy())
+    patch = patches.Rectangle((box.x * image_width, box.y * image_height), box.width * image_width,
+                              box.height * image_height,
+                              edgecolor='red',
+                              facecolor='none',
+                              alpha=0.3,
+                              lw=2)
+    axes[i].add_patch(patch)
     axes[i].axis('off')
     axes[i].set_title(label.numpy())
   plt.show()

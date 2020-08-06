@@ -16,8 +16,8 @@ os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = 'E:/secrets/ml-examples-ff91761a6
 PROJECT_ID = 'ml-examples-284704'
 CLOUD_STAGING_PREFIX = 'staging/'
 CLOUD_TEMP_PREFIX = 'temp/'
-LOCAL_DATASET_BUCKET = 'E:/datasets/coco'
-CLOUD_DATASET_BUCKET = 'ml-examples-coco'
+LOCAL_DATASET_BUCKET = 'E:/datasets/stanford_dogs'
+CLOUD_DATASET_BUCKET = 'ml-examples-stanford-dogs'
 CLOUD_LOCALIZATION_RECORDS_PREFIX = 'localization_records/'
 LOCAL_LOCALIZATION_RECORDS_PREFIX = 'localization_records/'
 CLOUD_RAW_RECORDS_PREFIX = 'raw_records/'
@@ -25,17 +25,17 @@ LOCAL_RAW_RECORDS_PREFIX = 'raw_records/'
 
 # Feature description to parse input proto example
 inputs_description = {
-  'id': tf.io.FixedLenFeature([], tf.int64),
   'path': tf.io.FixedLenFeature([], tf.string),
   'image': tf.io.FixedLenFeature([], tf.string),
   'objects': tf.io.FixedLenFeature([], tf.int64),
   'label': tf.io.VarLenFeature(tf.string),
-  'bbox': tf.io.VarLenFeature(tf.float32)
+  'bbox': tf.io.VarLenFeature(tf.float32),
+  'truncated': tf.io.VarLenFeature(tf.int64),
+  'difficulty': tf.io.VarLenFeature(tf.int64)
 }
 
 # Feature description to parse output proto example
 outputs_description = {
-  'id': tf.io.FixedLenFeature([], tf.int64),
   'path': tf.io.FixedLenFeature([], tf.string),
   'image': tf.io.FixedLenFeature([], tf.string),
   'label': tf.io.FixedLenFeature([], tf.string),
@@ -100,6 +100,7 @@ def get_tfrecords_filenames_from_folder(version: str):
   return [blob.name for blob in blobs]
 
 
+# DoFn class to read/parse raw records and convert to localization records
 class ReadParseGenerateFn(beam.DoFn):
   def __init__(self, root: str):
     self.root = root
@@ -119,26 +120,14 @@ class ReadParseGenerateFn(beam.DoFn):
       # Parses bboxes
       num_objects = example['objects']
       boxes = tf.reshape(tf.sparse.to_dense(example['bbox']), shape=[num_objects, 4])
-      mask = tf.equal(tf.sparse.to_dense(example['label']), 'dog')
-      # If there is a dog in the image then we encode the example as a dog example
-      if tf.reduce_any(mask):
-        # Only keeps the first dog box found
-        bbox = tf.boolean_mask(boxes, mask, axis=0)[0, :]
-        features = tf.train.Features(feature={
-          'id': tf.train.Feature(int64_list=tf.train.Int64List(value=[example['id'].numpy()])),
-          'path': tf.train.Feature(bytes_list=tf.train.BytesList(value=[example['path'].numpy()])),
-          'image': tf.train.Feature(bytes_list=tf.train.BytesList(value=[example['image'].numpy()])),
-          'label': tf.train.Feature(bytes_list=tf.train.BytesList(value=['dog'.encode()])),
-          'bbox': tf.train.Feature(float_list=tf.train.FloatList(value=bbox.numpy()))
-        })
-      else:
-        features = tf.train.Features(feature={
-          'id': tf.train.Feature(int64_list=tf.train.Int64List(value=[example['id'].numpy()])),
-          'path': tf.train.Feature(bytes_list=tf.train.BytesList(value=[example['path'].numpy()])),
-          'image': tf.train.Feature(bytes_list=tf.train.BytesList(value=[example['image'].numpy()])),
-          'label': tf.train.Feature(bytes_list=tf.train.BytesList(value=['others'.encode()])),
-          'bbox': tf.train.Feature(float_list=tf.train.FloatList(value=[0, 0, 0, 0]))
-        })
+      labels = tf.sparse.to_dense(example['label'])
+      # Only keeps the first dog box found
+      features = tf.train.Features(feature={
+        'path': tf.train.Feature(bytes_list=tf.train.BytesList(value=[example['path'].numpy()])),
+        'image': tf.train.Feature(bytes_list=tf.train.BytesList(value=[example['image'].numpy()])),
+        'label': tf.train.Feature(bytes_list=tf.train.BytesList(value=[labels[0].numpy()])),
+        'bbox': tf.train.Feature(float_list=tf.train.FloatList(value=boxes[0, :].numpy()))
+      })
       yield tf.train.Example(features=features).SerializeToString()
 
 
@@ -153,7 +142,7 @@ def create_pipeline_options(job, workers, dataflow_runner=False):
       '--project=' + PROJECT_ID,
       '--staging_location=gs://' + CLOUD_DATASET_BUCKET + '/' + CLOUD_STAGING_PREFIX,
       '--temp_location=gs://' + CLOUD_DATASET_BUCKET + '/' + CLOUD_TEMP_PREFIX,
-      '--job_name=coco-localization-tfrecords-job{}'.format(job),
+      '--job_name=stanford-localization-tfrecords-job{}'.format(job),
       '--region={}'.format(regions[job % len(regions)]),
       '--save_main_session',
       '--num_workers={}'.format(workers)
@@ -165,7 +154,7 @@ def create_pipeline_options(job, workers, dataflow_runner=False):
 if __name__ == '__main__':
   # Defines arguments
   parser = argparse.ArgumentParser()
-  parser.add_argument('version', help='Path to the images folder version (e.g. val2014)', type=str)
+  parser.add_argument('version', help='Folder name containing the list of files where the raw records are', type=str)
   parser.add_argument('--dataflow', help='Whether to use DataflowRunner or not', action='store_true')
   parser.add_argument('--jobs', help='Jobs to work on dataset', type=int)
   parser.add_argument('--workers', help='Workers per job (VMs)', type=int)
