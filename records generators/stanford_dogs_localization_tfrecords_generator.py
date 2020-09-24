@@ -154,7 +154,7 @@ def create_pipeline_options(job, workers, dataflow_runner=False):
 if __name__ == '__main__':
   # Defines arguments
   parser = argparse.ArgumentParser()
-  parser.add_argument('version', help='Folder name containing the list of files where the raw records are', type=str)
+  parser.add_argument('version', help='Folder where the raw tfrecords are', type=str)
   parser.add_argument('--dataflow', help='Whether to use DataflowRunner or not', action='store_true')
   parser.add_argument('--jobs', help='Jobs to work on dataset', type=int)
   parser.add_argument('--workers', help='Workers per job (VMs)', type=int)

@@ -47,24 +47,24 @@ BBox = collections.namedtuple('BBox', ['x', 'y', 'width', 'height'])
 
 
 # Creates path to store the records
-def get_save_records_path(version: str, job: int, dataflow_runner=False):
+def get_save_records_path(version: str, job: int, dataflow_runner=False) -> str:
   if dataflow_runner:
-    return 'gs://' + CLOUD_DATASET_BUCKET + '/' + CLOUD_LOCALIZATION_RECORDS_PREFIX + \
-           'data-job{:}.tfrecord'.format(job)
+    return 'gs://' + CLOUD_DATASET_BUCKET + '/' + CLOUD_LOCALIZATION_RECORDS_PREFIX + version + \
+           '/data-job{:}.tfrecord'.format(job)
   else:
     return LOCAL_DATASET_BUCKET + '/' + LOCAL_LOCALIZATION_RECORDS_PREFIX + version + \
            '/data-job{:}.tfrecord'.format(job)
 
 
-def get_load_records_path(version: str, dataflow_runner=False):
+def get_load_records_path(version: str, dataflow_runner=False) -> str:
   if dataflow_runner:
-    return 'gs://' + CLOUD_DATASET_BUCKET + '/' + CLOUD_RAW_RECORDS_PREFIX
+    return 'gs://' + CLOUD_DATASET_BUCKET + '/' + CLOUD_RAW_RECORDS_PREFIX + version + '/'
   else:
     return LOCAL_DATASET_BUCKET + '/' + LOCAL_RAW_RECORDS_PREFIX + version + '/'
 
 
 # Distributes filenames across jobs (returning one list per job)
-def create_records_lists(filenames: list, jobs: int, load: int):
+def create_jobs_records_lists(filenames: list, jobs: int, load: int) -> list:
   # Assigns number of records per job
   records_count = len(filenames) if load is None or load > len(filenames) else load
   records_per_job = [records_count // jobs] * jobs
@@ -81,20 +81,20 @@ def create_records_lists(filenames: list, jobs: int, load: int):
 
 
 # Returns all tfrecord filenames found in the bucket
-def get_tfrecords_filenames_from_bucket():
+def get_tfrecords_filenames_from_bucket(version: str) -> list:
   # Lazy import
   from google.cloud import storage
   # Instantiate a gc storage client
   storage_client = storage.Client()
   bucket = storage_client.get_bucket(CLOUD_DATASET_BUCKET)
-  blobs = bucket.list_blobs(prefix=CLOUD_RAW_RECORDS_PREFIX)
+  blobs = bucket.list_blobs(prefix=CLOUD_RAW_RECORDS_PREFIX + version + '/')
   # Filters all blobs corresponding to tfrecord files
   filenames = [blob.name.split('/')[-1] for blob in blobs if 'tfrecord' in blob.name]
   return filenames
 
 
 # Returns all tfrecord filenames found in the folder
-def get_tfrecords_filenames_from_folder(version: str):
+def get_tfrecords_filenames_from_folder(version: str) -> list:
   folder = pathlib.Path(LOCAL_DATASET_BUCKET) / LOCAL_RAW_RECORDS_PREFIX / version
   blobs = folder.glob('*.tfrecord*')
   return [blob.name for blob in blobs]
@@ -165,7 +165,7 @@ def create_pipeline_options(job, workers, dataflow_runner=False):
 if __name__ == '__main__':
   # Defines arguments
   parser = argparse.ArgumentParser()
-  parser.add_argument('version', help='Path to the images folder version (e.g. val2014)', type=str)
+  parser.add_argument('version', help='Folder where the raw tfrecords are', type=str)
   parser.add_argument('--dataflow', help='Whether to use DataflowRunner or not', action='store_true')
   parser.add_argument('--jobs', help='Jobs to work on dataset', type=int)
   parser.add_argument('--workers', help='Workers per job (VMs)', type=int)
@@ -180,10 +180,8 @@ if __name__ == '__main__':
   load = args.load if args.load else None
   shards = args.shards if args.shards else 10
   # Create lists of records (one list per job)
-  if dataflow:
-    filenames_lists = create_records_lists(get_tfrecords_filenames_from_bucket(), jobs, load)
-  else:
-    filenames_lists = create_records_lists(get_tfrecords_filenames_from_folder(version), jobs, load)
+  filenames = get_tfrecords_filenames_from_bucket(version) if dataflow else get_tfrecords_filenames_from_folder(version)
+  filenames_lists = create_jobs_records_lists(filenames, jobs, load)
   # Start all jobs
   for job, filenames in enumerate(filenames_lists):
     # Creates pipeline

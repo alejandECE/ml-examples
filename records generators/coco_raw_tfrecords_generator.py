@@ -153,7 +153,7 @@ def create_jobs_data(version: str, jobs: int, dataflow_runner=False, load=None):
     metadata = load_metadata_from_folder(json_name)
   # Creates list of categories mapping index to label
   index_to_label = {entry['id']: entry['name'] for entry in metadata['categories']}
-  categories = list(index_to_label.items())
+  categories = sorted(list(index_to_label.items()), key=lambda entry: int(entry[0]))
   # We split images for different jobs!
   # Creates a dictionary per job that maps image_id to all its metadata (without loading image from file yet)
   images_count = len(metadata['images']) if load is None or load > len(metadata['images']) else load
@@ -213,12 +213,12 @@ def create_pipeline_options(job, workers, dataflow_runner=False):
 # Creates path to store the records
 def get_records_path(version: str, job: int, dataflow_runner=False):
   if dataflow_runner:
-    return 'gs://' + CLOUD_DATASET_BUCKET + '/' + CLOUD_RAW_RECORDS_PREFIX + 'data-job{:}.tfrecord'.format(job)
+    return 'gs://' + CLOUD_DATASET_BUCKET + '/' + CLOUD_RAW_RECORDS_PREFIX + version + '/data-job{:}.tfrecord'.format(job)
   else:
     return LOCAL_DATASET_BUCKET + '/' + LOCAL_RAW_RECORDS_PREFIX + version + '/data-job{:}.tfrecord'.format(job)
 
 
-# Creates path to store the list of categories
+# Gets path to store the list of categories
 def get_categories_path(version: str, dataflow_runner=False):
   if dataflow_runner:
     return 'gs://' + CLOUD_DATASET_BUCKET + '/' + CLOUD_RAW_RECORDS_PREFIX + 'categories.txt'

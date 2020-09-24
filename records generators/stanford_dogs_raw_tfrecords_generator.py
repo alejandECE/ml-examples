@@ -27,9 +27,8 @@ CLOUD_TEMP_PREFIX = 'temp/'
 CLOUD_RAW_RECORDS_PREFIX = 'raw_records/'
 LOCAL_RAW_RECORDS_PREFIX = 'raw_records/'
 
-
 # Regex to help build annotation path from image path
-EXTRACT_ANNOTATION = re.compile(r"([\w-]*[/\\]*[\w]*).jpg")
+EXTRACT_ANNOTATION_REGEX = re.compile(r"([\w-]*[/\\]*[\w]*).jpg")
 
 # Bounding box helper namedtuple
 BBox = collections.namedtuple('BBox', ['x', 'y', 'width', 'height'])
@@ -108,7 +107,7 @@ class GenerateExampleFn(beam.DoFn):
       return
     # Verifies annotation file exists
     # Extracts path of file without the jpg extension
-    res = EXTRACT_ANNOTATION.match(element)
+    res = EXTRACT_ANNOTATION_REGEX.match(element)
     if not res:
       return
     annotations_filepath = self.annotations_path + res.group(1)
@@ -168,7 +167,7 @@ def load_file_list_from_bucket(version: str):
   storage_client = storage.Client()
   bucket = storage_client.get_bucket(CLOUD_DATASET_BUCKET)
   blob = bucket.blob(version)
-  # Download the contents of the blob to a temporaty file
+  # Download the contents of the blob to a temporary file
   fd, path = tempfile.mkstemp()
   with os.fdopen(fd, 'wb+') as file:
     blob.download_to_file(file)
@@ -270,9 +269,9 @@ if __name__ == '__main__':
     pipeline = beam.Pipeline(options=options)
     # Creates pcollection with loaded images (keyed by path)
     records = (pipeline
-              | "Lists Files" >> beam.Create(files)
-              | "Generate Examples" >> beam.ParDo(GenerateExampleFn(get_images_path(dataflow),
-                                                                    get_annotations_path(dataflow))))
+               | "Lists Files" >> beam.Create(files)
+               | "Generate Examples" >> beam.ParDo(GenerateExampleFn(get_images_path(dataflow),
+                                                                     get_annotations_path(dataflow))))
     # Stores examples
     records | "Store Examples" >> beam.io.WriteToTFRecord(get_records_path(version, job, dataflow), num_shards=shards)
     # Runs pipeline
