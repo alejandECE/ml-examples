@@ -1,12 +1,14 @@
 #  Created by Luis A. Sanchez-Perez (alejand@umich.edu).
 #  Copyright © Do not distribute or use without authorization from author
 
+import argparse
+import pathlib
 from typing import Tuple
 import tensorflow as tf
 import numpy as np
 from PIL import Image
 import matplotlib.pyplot as plt
-from bounding_box import BoundingBox
+from bbox import BoundingBox
 from matplotlib.colors import ListedColormap
 
 # Constants
@@ -23,20 +25,20 @@ def preprocess(img: np.ndarray) -> tf.Tensor:
 
 
 class DogsDetector:
-  def __init__(self, model_path, preprocess_fnc, window_step, window_size=None, threshold=.7):
+  def __init__(self, model_path: pathlib.Path, preprocess_fnc, window_step, window_size=None, threshold=.7):
     """
     Creates a dog detector using convolutional sliding windows. The performance of this model is way superior to the
     regular implementation of sliding windows. However, as you increase the side of the window Steps for bigger windows
     the step is always a factor of the size times the original step size of the CNN. For instance:
 
     Assume a CNN trained on 32x32 pictures outputting one value (dog probability) with 3 pooling layers of size 2x2.
-    This is equivalent to a step size of 8. Therefore, window size 32 and step size 8 are the standard of this network.
-    If we now want a window size of 128 = 4 * 32 then the step size will be 32 = 4 * 8.
+    On a bigger image this is equivalent to a window step size of 8. Therefore, window size 32 and step size 8 are the
+    standard of this network. If we now want a window size of 128 = 4 * 32 then the step size will be 32 = 4 * 8.
 
     :param model_path: Path to the CNN stored as *.pb model.
     :param preprocess_fnc: Function reference to perform preprocessing
     :param window_step: Corresponding step used by the CNN (multiply all pooling layers sizes).
-    :param window_size: List of window sizes to try out.
+    :param window_size: List of window sizes (factor of the original image size fed to CNN) to try out.
     :param threshold: Probability threshold to assume a dog has been detected.
     """
     # Image to detect dogs
@@ -45,14 +47,13 @@ class DogsDetector:
     self.dogs = None
     self.threshold = threshold
     # Loads models and pre-processing function
-    self.model = tf.keras.models.load_model(model_path)
+    self.model = tf.keras.models.load_model(str(model_path))
     self.preprocess_fnc = preprocess_fnc
     # Window size and step (this is the step of the original CNN)
     self.window_step = window_step
-    if window_size is None:
-      self.window_size = [1, 1.5, 5]
+    self.window_size = [1, 2, 3] if window_size is None else window_size
 
-  def find_dogs(self, image_path: str):
+  def find_dogs(self, image_path: pathlib.Path):
     """
     Search for dogs in the specified image using a convolutional implementation of sliding windows.
 
@@ -114,10 +115,15 @@ if __name__ == '__main__':
   # Allowing memory growth
   physical_devices = tf.config.list_physical_devices('GPU')
   tf.config.experimental.set_memory_growth(physical_devices[0], True)
+  # Defines arguments
+  parser = argparse.ArgumentParser()
+  parser.add_argument('--model', help='Model path', type=str)
+  parser.add_argument('--image', help='Image path', type=str)
+  # Parses arguments
+  args = parser.parse_args()
+  model_path = pathlib.Path(args.model) if args.model else pathlib.Path('trained_model/cnn4/20200716-145223/')
+  image_path = pathlib.Path(args.image) if args.image else pathlib.Path('images/search multiple dogs 1.jpg')
   # Creates sliding window detector
-  model = 'trained_model/cnn4/'
-  detector = DogsDetector(model, preprocess, 8)
-  # Loads image
-  image = 'images/search multiple dogs 5.jpg'
+  detector = DogsDetector(model_path, preprocess, window_step=8, window_size=[4], threshold=0.85)
   # Finds dogs in image
-  detector.find_dogs(image)
+  detector.find_dogs(image_path)

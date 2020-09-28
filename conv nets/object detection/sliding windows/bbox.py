@@ -1,3 +1,6 @@
+#  Created by Luis A. Sanchez-Perez (alejand@umich.edu).
+#  Copyright © Do not distribute or use without authorization from author
+
 import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 
@@ -60,7 +63,8 @@ class BoundingBox:
 if __name__ == '__main__':
   # Creates two boxes
   box1 = BoundingBox(10, 5, 100, 200)
-  box2 = BoundingBox(80, 150, 50, 100)
+  # box2 = BoundingBox(80, 150, 50, 100)
+  box2 = BoundingBox(10, 5, 100, 200)
   # Plots both boxes
   fig = plt.figure()
   ax = fig.add_subplot(111)

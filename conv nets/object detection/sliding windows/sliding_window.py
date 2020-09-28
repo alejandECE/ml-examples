@@ -1,10 +1,12 @@
 #  Created by Luis A. Sanchez-Perez (alejand@umich.edu).
 #  Copyright © Do not distribute or use without authorization from author
 
+import argparse
+import pathlib
 from typing import Tuple
 from PIL import Image
 import matplotlib.pyplot as plt
-from bounding_box import BoundingBox
+from bbox import BoundingBox
 from matplotlib.colors import ListedColormap
 import numpy as np
 import tensorflow as tf
@@ -24,7 +26,7 @@ def preprocess(img: np.ndarray) -> tf.Tensor:
 
 
 class DogsDetector:
-  def __init__(self, model_path, preprocess_fnc, window_size=None, window_step=None, threshold=.7):
+  def __init__(self, model_path: pathlib.Path, preprocess_fnc, window_size=None, window_step=None, threshold=.7):
     """
     Creates a dog detector.
 
@@ -40,13 +42,13 @@ class DogsDetector:
     self.dogs = None
     self.threshold = threshold
     # Loads models and pre-processing function
-    self.model = tf.keras.models.load_model(model_path)
+    self.model = tf.keras.models.load_model(str(model_path))
     self.preprocess_fnc = preprocess_fnc
     # Window size and step
     if window_size is None:
-      self.window_size = [2, 4, 6]
+      self.window_size = [4]
     if window_step is None:
-      self.window_step = 25
+      self.window_step = 32
 
   # Initializes the progress bar
   def __setup_progress(self, total_windows: float) -> None:
@@ -64,7 +66,7 @@ class DogsDetector:
     print('[', '=' * current_length, '>', ' ' * (self.__total_length - current_length),
           ']: {:3.0f}%'.format(ratio * 100), end='', sep='')
 
-  def find_dogs(self, image_path: str) -> None:
+  def find_dogs(self, image_path: pathlib.Path) -> None:
     """
     Search for dogs in the specified image using a convolutional implementation of sliding windows.
 
@@ -123,10 +125,18 @@ class DogsDetector:
 
 
 if __name__ == '__main__':
+  # Allowing memory growth
+  physical_devices = tf.config.list_physical_devices('GPU')
+  tf.config.experimental.set_memory_growth(physical_devices[0], True)
+  # Defines arguments
+  parser = argparse.ArgumentParser()
+  parser.add_argument('--model', help='Model path', type=str)
+  parser.add_argument('--image', help='Image path', type=str)
+  # Parses arguments
+  args = parser.parse_args()
+  model_path = pathlib.Path(args.model) if args.model else pathlib.Path('trained_model/cnn4/20200716-145223/')
+  image_path = pathlib.Path(args.image) if args.image else pathlib.Path('images/search one dog 1.jpg')
   # Creates sliding window detector
-  model = 'trained_model/cnn3/'
-  detector = DogsDetector(model, preprocess)
-  # Loads image
-  image = 'images/search multiple dogs 2.jpg'
+  detector = DogsDetector(model_path, preprocess, threshold=0.85)
   # Finds dogs in image
-  detector.find_dogs(image)
+  detector.find_dogs(image_path)

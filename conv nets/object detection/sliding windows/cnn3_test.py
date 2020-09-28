@@ -6,25 +6,17 @@ import numpy as np
 from PIL import Image
 import matplotlib.pyplot as plt
 import sys
-
-# Some constants & setups
-INPUT_HEIGHT = 32
-INPUT_WIDTH = 32
-
-
-# Crops the image in a given area and resizes it to the size of the smallest window (INPUT_WIDTH, INPUT_HEIGHT)
-def preprocess(img) -> np.ndarray:
-  img = np.array(img.resize((INPUT_WIDTH, INPUT_HEIGHT), resample=1)) / 255.0
-  img = np.expand_dims(img, axis=0)
-  return img
-
+import cnn3_training as cnn3
 
 if __name__ == '__main__':
+  # Verifying correct # of parameters
   if len(sys.argv) < 2:
     exit()
-  path = sys.argv[1]
+  # Allowing memory growth
+  physical_devices = tf.config.list_physical_devices('GPU')
+  tf.config.experimental.set_memory_growth(physical_devices[0], True)
   # Loads image
-  test_img = Image.open(path)
+  test_img = Image.open(sys.argv[1])
   # Parse arguments and crops if needed
   if len(sys.argv) > 4:
     x = int(sys.argv[2])
@@ -36,7 +28,10 @@ if __name__ == '__main__':
   model = tf.keras.models.load_model('trained_model/cnn3/')
   # Test the model with the test image
   plt.imshow(test_img)
+  # Prepares for model evaluation
+  inputs = tf.expand_dims(cnn3.preprocess(tf.convert_to_tensor(np.array(test_img))), axis=0)
+  # Evaluates image
   plt.title('Dog (Probability): {}'.format(
-    np.squeeze(model.predict(preprocess(test_img)))
+    np.squeeze(model.predict(inputs))
   ))
   plt.show()
