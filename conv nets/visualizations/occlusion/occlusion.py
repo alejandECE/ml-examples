@@ -7,6 +7,7 @@ import tensorflow as tf
 import pathlib
 import stanford_dogs_raw_tfrecords_generator as stanford
 import matplotlib.pyplot as plt
+import datetime
 
 # Constants
 DATASETS = pathlib.Path('E:/datasets')
@@ -43,7 +44,7 @@ def get_occlusion_location(window_size: tf.Tensor, output_size: tf.Tensor, index
   return tf.stack((row, col))
 
 
-def get_occlussion_mask(coordinates: tf.Tensor, window_size: tf.Tensor) -> tf.Tensor:
+def get_occlusion_mask(coordinates: tf.Tensor, window_size: tf.Tensor) -> tf.Tensor:
   # Some initial conversions
   img_height = tf.convert_to_tensor(IMG_HEIGHT, dtype=tf.int64)
   img_width = tf.convert_to_tensor(IMG_WIDTH, dtype=tf.int64)
@@ -79,7 +80,7 @@ def occlude_image(image: tf.Tensor,
   # Gets location of the occlusion are as a tensor of 1D of shape [2,]
   coordinates = get_occlusion_location(window_size, output_size, index)
   # Gets the occlusion mask corresponding to index
-  mask = get_occlussion_mask(coordinates, window_size)
+  mask = get_occlusion_mask(coordinates, window_size)
   return image * tf.cast(mask, dtype=image.dtype)
 
 
@@ -144,6 +145,7 @@ def plot_heatmap(image: tf.Tensor, heatmap: tf.Tensor):
   axes[0].axis('off')
   axes[1].axis('off')
   axes[2].axis('off')
+  plt.savefig('result_' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + '.png')
   plt.show()
 
 
