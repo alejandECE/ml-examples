@@ -1,7 +1,6 @@
 .ipynb_checkpoints
 __pycache__
 .idea/
-*.jpg
-*.png
 trained_model/
 /backpropagation/logs
+*.jpg
