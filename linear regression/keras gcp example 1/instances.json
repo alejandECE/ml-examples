@@ -1,0 +1,19 @@
+{
+    "instances": [
+        {
+            "Age": 42.0,
+            "Weight": 224.75,
+            "Height": 74.75,
+            "Neck": 38.5,
+            "Chest": 106.7,
+            "Abdomen": 105.7,
+            "Hip": 111.8,
+            "Thigh": 65.3,
+            "Knee": 43.3,
+            "Ankle": 26.0,
+            "Biceps": 33.7,
+            "Forearm": 29.9,
+            "Wrist": 18.5
+        }
+    ]
+}

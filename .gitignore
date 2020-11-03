@@ -3,4 +3,7 @@ __pycache__
 .idea/
 trained_model/
 /backpropagation/logs
+linear regression/*/saved
 *.jpg
+*.png
+*.npz
