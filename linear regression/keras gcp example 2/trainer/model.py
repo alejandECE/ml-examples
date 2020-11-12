@@ -93,7 +93,7 @@ def create_datafiles_version(state: str) -> Tuple:
   version = find_datafile_last_version(state)
   version = 1 if version is None else version + 1
   path = pathlib.Path()
-  np.savez('datasets/{}-{}.npz'.format(state, str(version).zfill(4)), train=train, test=test, dates=dates)
+  np.savez('../datasets/{}-{}.npz'.format(state, str(version).zfill(4)), train=train, test=test, dates=dates)
   return train, test, dates
 
 
@@ -129,7 +129,7 @@ def create_datasets(state: str, version: int = None) -> Tuple:
   return train_ds, test_ds, all_ds
 
 
-def plot_results(model: tf.keras.Model, dataset: tf.data.Dataset):
+def plot_train_results(model: tf.keras.Model, dataset: tf.data.Dataset) -> None:
   plt.figure(figsize=(15, 5))
   expected = [label.numpy()[0] for _, (_, label) in dataset]
   estimation = [tf.squeeze(model(tf.expand_dims(features, axis=0))).numpy() for _, (features, label) in dataset]
@@ -141,7 +141,7 @@ def plot_results(model: tf.keras.Model, dataset: tf.data.Dataset):
   plt.show()
 
 
-def create_linear_model():
+def create_linear_model() -> tf.keras.models.Model:
   mdl = tf.keras.models.Sequential([
     tf.keras.layers.Dense(1, input_shape=(SEQUENCE_LENGTH,), activation='relu')
   ])
@@ -155,7 +155,7 @@ def create_linear_model():
   return mdl
 
 
-def create_dnn_model():
+def create_dnn_model() -> tf.keras.models.Model:
   mdl = tf.keras.models.Sequential([
     tf.keras.layers.Dense(64, input_shape=(SEQUENCE_LENGTH,), activation='relu'),
     tf.keras.layers.Dropout(0.1),
@@ -173,7 +173,7 @@ def create_dnn_model():
   return mdl
 
 
-def create_rnn_model():
+def create_rnn_model() -> tf.keras.models.Model:
   mdl = tf.keras.models.Sequential([
     tf.keras.layers.Input(shape=(SEQUENCE_LENGTH,)),
     # tf.keras.layers.experimental.preprocessing.Normalization(),
@@ -190,6 +190,45 @@ def create_rnn_model():
   mdl.summary()
   tf.keras.utils.plot_model(mdl, to_file='rnn.png', show_shapes=True, rankdir="LR")
   return mdl
+
+
+def plot_naive_results(train_ds: tf.data.Dataset, test_ds: tf.data.Dataset, all_ds: tf.data.Dataset) -> None:
+  # Checking performance on training set
+  loss, metric = get_naive_forecasting_performance(
+    train_ds,
+    tf.keras.losses.MeanSquaredError(),
+    R2Square()
+  )
+  print('Training Set (Naive) - Loss: {:.4f}, Metric: {:.4f}'.format(loss, metric))
+  # Checking performance on test set
+  loss, metric = get_naive_forecasting_performance(
+    test_ds,
+    tf.keras.losses.MeanSquaredError(),
+    R2Square()
+  )
+  print('Test Set (Naive) - Loss: {:.4f}, Metric: {:.4f}'.format(loss, metric))
+  # Plotting results
+  plt.figure(figsize=(15, 5))
+  expected = [label.numpy()[0] for _, (_, label) in all_ds]
+  estimation = [features[-1] for _, (features, label) in all_ds]
+  dates = [date.numpy()[0].decode('utf-8') for date, _ in all_ds]
+  plt.plot(expected, 'b')
+  plt.plot(estimation, 'm')
+  plt.xticks(range(0, len(dates), 5), dates[::5], rotation=90)
+  plt.grid(axis='x')
+  plt.show()
+
+
+def get_naive_forecasting_performance(dataset: tf.data.Dataset,
+                                      loss: tf.keras.losses.Loss,
+                                      metric: tf.keras.metrics.Metric) -> Tuple:
+  metric.reset_states()
+  losses = []
+  for sequence, y_true in dataset:
+    y_pred = sequence[..., -1]
+    metric.update_state(y_true, y_pred)
+    losses.append(loss(y_true, y_pred).numpy())
+  return sum(losses) / len(losses), metric.result().numpy()
 
 
 def train_and_evaluate(args):
@@ -211,5 +250,7 @@ def train_and_evaluate(args):
     model = create_linear_model()
   # Trains model
   model.fit(train_ds, epochs=epochs, validation_data=test_ds)
-  # Plot results
-  plot_results(model, all_ds)
+  # Plot results after training
+  plot_train_results(model, all_ds)
+  # Shows results with naive forecasting
+  plot_naive_results(train_ds, test_ds, all_ds)

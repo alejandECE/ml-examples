@@ -2,7 +2,7 @@
 #  Copyright © Do not distribute or use without authorization from author
 
 import argparse
-from trainer import model
+import model
 
 if __name__ == '__main__':
   # Creates argument parser
