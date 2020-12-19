@@ -1,5 +1,7 @@
 ### Description
-These are some of the examples resulting from the occlusion experiments. Images with occluded regions are generated as part of the tf.data.Dataset pipeline to speed up the evaluation.
+These are some examples resulting from the occlusion experiments.
+A tf.data.Dataset pipeline is created to generate batches of images with occluded regions.
+This with the purpose of evaluate multiple inputs at once and speed up the process.
 
 ### Results
 ![](/conv%20nets/visualizations/occlusion/example1.png)
