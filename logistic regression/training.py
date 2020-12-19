@@ -6,11 +6,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 from IPython.display import display, clear_output
 from optimizers import Param
-import keyboard
 from model import compute_output, compute_cost, compute_gradient, compute_hessian
 from optimizers import LineSearchOptimizer, NewtonsMethodOptimizer
 from collections import namedtuple
 from sklearn.metrics import accuracy_score, recall_score, precision_score, f1_score
+from pynput import keyboard
+import threading
 
 # A record for a training step
 Record = namedtuple('Record', ['params', 'cost', 'accuracy', 'precision', 'recall', 'f1score'])
@@ -32,6 +33,8 @@ class TrainingAnimation1D:
       self.tracked_metrics = ['accuracy', 'precision', 'recall', 'f1score']
     else:
       self.tracked_metrics = tracked_metrics
+    self.current = 0
+    self.lock = threading.Lock()
 
   # Setups metrics axis returning a dictionary with an artist entry per metric
   def _setup_metrics_artists(self, ax):
@@ -86,6 +89,12 @@ class TrainingAnimation1D:
         ydata = [getattr(record, key) for record in self.history[:step + 1]]
         artist.set_data(range(0, step + 1), ydata)
 
+  # Keyboard listener
+  def stop(self, key):
+    if key == keyboard.Key.esc:
+      with self.lock:
+        self.current = len(self.history) - 1
+
   # Starts animation
   def start(self):
     # Creates figure
@@ -100,17 +109,21 @@ class TrainingAnimation1D:
     self.cost_artists = self._setup_cost_artists(ax_cost)
     self.metrics_artists = self._setup_metrics_artists(ax_metrics)
     # Performs animation by updating data
-    self._plot_frame(0)
+    clear_output(wait=True)
+    plt.pause(0.01)
+    self._plot_frame(self.current)
     fig.legend(loc=8)
-    for i in range(1, len(self.history)):
-      self._plot_frame(i)
-      display(fig)
-      clear_output(wait=True)
-      plt.pause(0.01)
-      if keyboard.is_pressed('Esc'):
-        self._plot_frame(len(self.history) - 1)
+    # Keyboard listener to stop animation
+    listener = keyboard.Listener(on_press=self.stop)
+    listener.start()
+    # Looping through steps
+    while self.current < len(self.history):
+      with self.lock:
+        self._plot_frame(self.current)
         display(fig)
-        break
+        clear_output(wait=True)
+        self.current += 1
+      plt.pause(0.1)
 
 
 # Helper class to generate 2D training animation provided you pass proper training data
@@ -134,6 +147,8 @@ class TrainingAnimation2D:
       self.tracked_metrics = ['accuracy', 'precision', 'recall', 'f1score']
     else:
       self.tracked_metrics = tracked_metrics
+    self.current = 0
+    self.lock = threading.Lock()
 
   # Creates mesh applying same transformation
   def _setup_boundary_mesh(self):
@@ -191,6 +206,12 @@ class TrainingAnimation2D:
     ax.set_ylim([0, max([entry[1] for entry in self.history])])
     return line
 
+  # Keyboard listener
+  def stop(self, key):
+    if key == keyboard.Key.esc:
+      with self.lock:
+        self.current = len(self.history) - 1
+
   # Starts animation
   def start(self):
     # Creates figure
@@ -208,17 +229,19 @@ class TrainingAnimation2D:
     # Performs animation by updating data
     clear_output(wait=True)
     plt.pause(0.01)
-    self._plot_frame(0)
+    self._plot_frame(self.current)
     fig.legend(loc=8)
-    for i in range(1, len(self.history)):
-      self._plot_frame(i)
-      display(fig)
-      clear_output(wait=True)
-      plt.pause(0.01)
-      if keyboard.is_pressed('Esc'):
-        self._plot_frame(len(self.history) - 1)
+    # Keyboard listener to stop animation
+    listener = keyboard.Listener(on_press=self.stop)
+    listener.start()
+    # Looping through steps
+    while self.current < len(self.history):
+      with self.lock:
+        self._plot_frame(self.current)
         display(fig)
-        break
+        clear_output(wait=True)
+        self.current += 1
+      plt.pause(0.1)
 
   # Updates data of artists from history step
   def _plot_frame(self, step):

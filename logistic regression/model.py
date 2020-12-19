@@ -5,8 +5,8 @@ import numpy as np
 
 
 # Function to compute the sigmoid function
-def sigmoid(x):
-  return 1. / (1. + np.exp(-x))
+def sigmoid(z):
+  return 1. / (1. + np.exp(-z))
 
 
 # Function to compute the model output
