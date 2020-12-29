@@ -7,7 +7,7 @@ The middle image is the orignal image.
 
 The righ-most image is the original image occluded according to the heatmap. In other words, the "most important" regions are visible and viceversa.
 
-Notice that every image with a different occluded region is a new input that most be evaluated with the model. To improve the throughput time of the experiment a [tf.data pipeline](/conv%20nets/visualizations/occlusion/occlusion.py#L90) is created to generate batches of images with occluded regions. A general overview of the processes is the following:
+Notice that every image with a different occluded region is a new input that most be evaluated with the model. To improve the throughput time of the experiment a [tf.data pipeline](/conv%20nets/visualizations/occlusion/occlusion.py#L90) is created to generate batches of images with occluded regions. A general overview of the process is:
   1. Sample a image from the original dataset.
   2. Repeat this image as many times as occluded images you will have.
   3. Enumerate each occluded image.
