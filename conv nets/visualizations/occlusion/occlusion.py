@@ -8,9 +8,12 @@ import pathlib
 import stanford_dogs_raw_tfrecords_generator as stanford
 import matplotlib.pyplot as plt
 import datetime
+import os
 
 # Constants
-DATASETS = pathlib.Path('E:/datasets')
+DATASETS = pathlib.Path(os.environ['DATASETS'])
+OUTPUTS = pathlib.Path(os.environ['OUTPUTS'])
+RESNET50 = pathlib.Path(os.environ['WEIGHTS']) / 'resnet50_weights_tf_dim_ordering_tf_kernels.h5'
 IMG_HEIGHT = 224
 IMG_WIDTH = 224
 BATCH_SIZE = 32
@@ -19,7 +22,7 @@ AUTOTUNE = tf.data.experimental.AUTOTUNE
 
 
 def get_stanford_dogs_train_records_list():
-  path = DATASETS / 'stanford_dogs/raw_records/train_list.mat'
+  path = DATASETS / 'stanford_dogs/raw_records/train_list.mat/'
   return [str(file) for file in path.glob('*.tfrecord*')]
 
 
@@ -59,7 +62,7 @@ def get_occlusion_mask(coordinates: tf.Tensor, window_size: tf.Tensor) -> tf.Ten
     ), axis=1),
     repeats=[tf.minimum(img_width - coordinates[1], window_size)], axis=0
   )
-  # Creates bottom-sorrounding rows
+  # Creates bottom-surrounding rows
   bottom_rows = tf.ones(shape=(tf.maximum(img_height - coordinates[0] - window_size, 0), img_width))
   # Creates mask putting together all previously generated rows
   mask = tf.concat(
@@ -107,7 +110,7 @@ def create_occlusion_dataset(window_size: int, output_size: int) -> Tuple:
 
 # Loads a already trained model
 def create_model():
-  model = tf.keras.applications.resnet50.ResNet50()
+  model = tf.keras.applications.resnet50.ResNet50(weights=str(RESNET50))
   model.summary()
   return model
 
@@ -137,7 +140,7 @@ def plot_heatmap(image: tf.Tensor, heatmap: tf.Tensor):
   axes[1].imshow(image)
   # Plots heatmap
   axes[0].imshow(heatmap.numpy())
-  # Plots image with transparency modified according to heatmap
+  # Plots image with the transparency modified according to heatmap
   alpha = 255 * (tf.image.resize(tf.expand_dims(heatmap, axis=-1), [IMG_HEIGHT, IMG_WIDTH], antialias=True)
                  / tf.reduce_max(heatmap))
   axes[2].imshow(tf.concat((image, tf.cast(alpha, dtype=image.dtype)), axis=-1))
@@ -145,7 +148,7 @@ def plot_heatmap(image: tf.Tensor, heatmap: tf.Tensor):
   axes[0].axis('off')
   axes[1].axis('off')
   axes[2].axis('off')
-  plt.savefig('result_' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + '.png')
+  plt.savefig(OUTPUTS / ('result_' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + '.png'))
   plt.show()
 
 
