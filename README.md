@@ -8,7 +8,7 @@ This folder includes two examples of train and deployment of Google Cloud Platfo
     * A regression example (using Tensorflow) found [here](/linear%20regression/keras%20gcp%20example%201).
     * A prediction example (using Tensorflow) found [here](/linear%20regression/keras%20gcp%20example%202).
     
-* [Introduction to Gradient Descent](/gradient%20descend) (Numerical gradient, otimizers, line search, Newtwon's method, Adagrad, cost functions, among other). [Video](https://youtu.be/4W3Gf5-Z75o).
+* [Introduction to Gradient Descent](/gradient%20descend) (Numerical gradient, otimizers, line search, Newtwon's method, Adagrad, cost functions, among other). [Video 1](https://youtu.be/hnCuQcrs9kA), [Video 2](https://youtu.be/4W3Gf5-Z75o).
 
 * [Logistic Regression](/logistic%20regression) (Logistic Regression (custom, using scipy.optimize toolbox and sklearn implementation), Softmax Regression, regularization, bias regularization effect). [Video 1](https://youtu.be/jGkTFk-MLh0), [Video 2](https://youtu.be/T1C6fTOUXkM).
 
