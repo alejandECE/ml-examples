@@ -145,16 +145,14 @@ def create_model(dropout_rate: float, l2_rate: float) -> tf.keras.Model:
     tf.keras.layers.Conv2D(filters=32, kernel_size=3, activation='relu',
                            kernel_initializer=tf.keras.initializers.he_uniform()),
     tf.keras.layers.MaxPooling2D(pool_size=(2, 2)),
-    tf.keras.layers.Dropout(dropout_rate),
     tf.keras.layers.Conv2D(filters=64, kernel_size=3, activation='relu',
                            kernel_initializer=tf.keras.initializers.he_uniform()),
     tf.keras.layers.MaxPooling2D(pool_size=(2, 2)),
-    tf.keras.layers.Dropout(dropout_rate),
     tf.keras.layers.Conv2D(filters=128, kernel_size=3, activation='relu',
                            kernel_initializer=tf.keras.initializers.he_uniform()),
     tf.keras.layers.GlobalMaxPooling2D(),
-    tf.keras.layers.Dropout(dropout_rate),
     tf.keras.layers.Dense(units=128, activation='relu', kernel_regularizer=tf.keras.regularizers.l2(l2_rate)),
+    tf.keras.layers.Dropout(dropout_rate),
     tf.keras.layers.Dense(units=1, activation='sigmoid')
   ])
   mdl.compile(

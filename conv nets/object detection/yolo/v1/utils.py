@@ -5,9 +5,17 @@ from typing import Tuple
 import tensorflow as tf
 import pathlib
 import re
+import os
+
+
+# Root folder to find datasets
+DATASETS = pathlib.Path(os.environ['DATASETS'])
+# Root folder to place outputs from this script
+OUTPUTS = pathlib.Path(os.environ['OUTPUTS'])
+# Path to Mobilenet weights without top layers
+MOBILENET = pathlib.Path(os.environ['WEIGHTS']) / 'mobilenet_v2_weights_tf_dim_ordering_tf_kernels_1.0_224_no_top.h5'
 
 # Constants
-DATASETS = pathlib.Path('E:/datasets')
 AUTOTUNE = tf.data.experimental.AUTOTUNE
 BATCH_SIZE = 32
 BUFFER_SIZE = BATCH_SIZE * 32
@@ -23,6 +31,15 @@ ANCHORS_SHAPE = [
 
 # Regex to extract category label and id
 EXTRACT_CATEGORY_INFO_REGEX = re.compile(r"^\([0-9]+, '([a-z ]*)'\)$")
+
+
+# Creates file storing options passed to the command line when running script
+def create_commandline_options_log(path: pathlib.Path, arguments: dict) -> None:
+  options = path / 'options.txt'
+  if not options.parent.exists():
+    options.parent.mkdir(parents=True)
+  with open(options, 'w+') as file:
+      file.write(str(arguments) + '\n')
 
 
 def get_coco_train_records_list():

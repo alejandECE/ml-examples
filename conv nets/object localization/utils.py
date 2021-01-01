@@ -5,11 +5,28 @@ import argparse
 import tensorflow as tf
 import matplotlib.pyplot as plt
 from matplotlib import patches
-import sys
-sys.path.append('../../records generators')
 import coco_localization_tfrecords_generator as coco
 import dogs_localization as dogs
+import matplotlib
 import pathlib
+import os
+
+
+# Root folder to find datasets
+DATASETS = pathlib.Path(os.environ['DATASETS'])
+# Root folder to place outputs from this script
+OUTPUTS = pathlib.Path(os.environ['OUTPUTS'])
+# Path to Resnet50 weights
+RESNET50 = pathlib.Path(os.environ['WEIGHTS']) / 'resnet50_weights_tf_dim_ordering_tf_kernels.h5'
+
+
+# Creates file storing options passed to the command line when running script
+def create_commandline_options_log(path: pathlib.Path, arguments: dict) -> None:
+  options = path / 'options.txt'
+  if not options.parent.exists():
+    options.parent.mkdir(parents=True)
+  with open(options, 'w+') as file:
+      file.write(str(arguments) + '\n')
 
 
 def explore_results(model: tf.keras.Model, dataset: tf.data.Dataset, localization: bool, transferred: bool):
@@ -46,7 +63,7 @@ def explore_results(model: tf.keras.Model, dataset: tf.data.Dataset, localizatio
       axes[i].add_patch(patch)
     # Some extra configurations
     axes[i].axis('off')
-    axes[i].set_title("{:.2f}".format(predicted[0].numpy()))
+    axes[i].set_title("{:.2f}".format(predicted.numpy()))
   plt.show()
 
 
@@ -109,8 +126,9 @@ if __name__ == '__main__':
   parser.add_argument('--explore', help='Perform a simple exploration of the model', action='store_true')
   parser.add_argument('--samples', help='Max # of samples to keep in the dataset (Default: 1k)', type=int)
   # Parses arguments
+  print(matplotlib.get_backend())
   args = parser.parse_args()
-  checkpoint_path = pathlib.Path(args.checkpoint)
+  checkpoint_path = dogs.OUTPUTS / args.checkpoint
   localization = True if args.localization else False
   transferred = True if args.transferred else False
   error = True if args.error else False

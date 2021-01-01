@@ -12,6 +12,8 @@ import collections
 import utils
 import yolo
 
+OBJECTNESS_THRESHOLD = 0.6
+
 # Visual representation of a detected object
 Object = collections.namedtuple('Object', ['bbox', 'index', 'objectness'])
 
@@ -260,9 +262,9 @@ def visualize_dataset_example(dataset: tf.data.Dataset,
   plt.show()
 
 
-def visualize_detection_example(model: tf.keras.Model, dataset: tf.data.Dataset,
-                                index_to_category: tf.lookup.StaticHashTable,
-                                examples: int = 5) -> None:
+def visualize_detection_examples(model: tf.keras.Model, dataset: tf.data.Dataset,
+                                 index_to_category: tf.lookup.StaticHashTable,
+                                 examples: int = 5) -> None:
   """
   Displays some detection examples (one at a time) from the given dataset using the specified model.
 
@@ -327,7 +329,7 @@ def visualize_detection_example(model: tf.keras.Model, dataset: tf.data.Dataset,
       ) for i in range(7) for j in range(7)
     ]
     # Only objects with high certainty are considered
-    detections = filter(lambda entry: entry.objectness > 0.2, objects)
+    detections = filter(lambda entry: entry.objectness > OBJECTNESS_THRESHOLD, objects)
     # Performs non-max suppression
     sorted_detections = sorted(detections, key=lambda entry: entry.objectness, reverse=True)
     included_detections = []

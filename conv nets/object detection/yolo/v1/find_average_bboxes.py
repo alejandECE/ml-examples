@@ -1,15 +1,9 @@
 #  Created by Luis A. Sanchez-Perez (alejand@umich.edu).
 #  Copyright © Do not distribute or use without authorization from author
 
-import pathlib
 import tensorflow as tf
-import sys
-sys.path.append('../../../../records generators')
 import coco_raw_tfrecords_generator as coco
-
-# Constants
-DATASETS = pathlib.Path('E:/datasets')
-AUTOTUNE = tf.data.experimental.AUTOTUNE
+import utils
 
 
 # Parses examples and returns bboxes width and height
@@ -22,10 +16,10 @@ def parse_raw_example(entry: tf.Tensor):
 
 def create_dataset():
   # Loads others examples
-  records_path = DATASETS / 'coco/raw_records/train2014/'
+  records_path = utils.DATASETS / 'coco/raw_records/train2014/'
   records_ds = tf.data.Dataset.from_tensor_slices([str(file) for file in records_path.glob('*.tfrecord*')])
-  records_ds = records_ds.interleave(tf.data.TFRecordDataset, num_parallel_calls=AUTOTUNE, deterministic=True)
-  records_ds = records_ds.map(parse_raw_example, num_parallel_calls=AUTOTUNE).prefetch(AUTOTUNE)
+  records_ds = records_ds.interleave(tf.data.TFRecordDataset, num_parallel_calls=utils.AUTOTUNE, deterministic=True)
+  records_ds = records_ds.map(parse_raw_example, num_parallel_calls=utils.AUTOTUNE).prefetch(utils.AUTOTUNE)
   return records_ds
 
 

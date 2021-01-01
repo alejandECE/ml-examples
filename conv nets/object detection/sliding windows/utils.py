@@ -35,10 +35,10 @@ def create_tensorboard_docker_runner(trainings: pathlib.Path) -> None:
 
 
 # Creates file storing options passed to the command line when running script
-def create_commandline_options_log(logs_path: pathlib.Path, arguments:dict) -> None:
+def create_commandline_options_log(logs_path: pathlib.Path, arguments: dict) -> None:
   options = logs_path / 'options.txt'
   with open(options, 'w+') as file:
-      file.write(str(arguments))
+      file.write(str(arguments) + '\n')
 
 
 # Computes accuracy and macro averaged metrics: precision, recall and fscore

@@ -4,11 +4,8 @@
 import tensorflow as tf
 import datetime
 import argparse
-import sys
-sys.path.append('../../../../records generators')
 import coco_raw_tfrecords_generator as coco
 from typing import Tuple
-import pathlib
 import utils
 import losses
 import visualization as viewer
@@ -229,8 +226,8 @@ def create_training_dataset(observations: int,
   # Loads and parse raw examples
   records_ds = tf.data.Dataset.from_tensor_slices(utils.get_coco_train_records_list())
   records_ds = records_ds.interleave(tf.data.TFRecordDataset, num_parallel_calls=utils.AUTOTUNE, deterministic=True)
-  records_ds = records_ds.map(parse_raw_example, num_parallel_calls=utils.AUTOTUNE)
   records_ds = records_ds.take(observations)
+  records_ds = records_ds.map(parse_raw_example, num_parallel_calls=utils.AUTOTUNE)
   # Prepares output for yolo v1 detector
   records_ds = records_ds.map(lambda image, path, bboxes, labels:
                               (image, path, prepare_detection_output(bboxes, labels, category_to_index)),
@@ -258,8 +255,8 @@ def create_test_dataset(observations: int,
   # Loads and parse raw examples
   records_ds = tf.data.Dataset.from_tensor_slices(utils.get_coco_test_records_list())
   records_ds = records_ds.interleave(tf.data.TFRecordDataset, num_parallel_calls=utils.AUTOTUNE, deterministic=True)
-  records_ds = records_ds.map(parse_raw_example, num_parallel_calls=utils.AUTOTUNE)
   records_ds = records_ds.take(observations)
+  records_ds = records_ds.map(parse_raw_example, num_parallel_calls=utils.AUTOTUNE)
   # Prepares output for yolo v1 detector
   records_ds = records_ds.map(lambda image, path, bboxes, labels:
                               (image, path, prepare_detection_output(bboxes, labels, category_to_index)),
@@ -281,7 +278,7 @@ def create_test_dataset(observations: int,
 # Creates transferred model
 def create_model(timestamp: str = None, unfreeze=0) -> Tuple:
   anchor_shapes = tf.convert_to_tensor(utils.ANCHORS_SHAPE)
-  base_model = tf.keras.applications.mobilenet_v2.MobileNetV2(include_top=False,
+  base_model = tf.keras.applications.mobilenet_v2.MobileNetV2(include_top=False, weights=str(utils.MOBILENET),
                                                               input_shape=[utils.IMG_HEIGHT, utils.IMG_WIDTH, 3])
   # Avoid changing loaded weights of some (if not all) layers
   layer_count = len(base_model.layers)
@@ -301,7 +298,7 @@ def create_model(timestamp: str = None, unfreeze=0) -> Tuple:
   mdl.summary()
   # Stores image
   if timestamp is not None:
-    diagram_path = pathlib.Path('trainings') / timestamp / 'diagram'
+    diagram_path = utils.OUTPUTS / timestamp / 'diagram'
     diagram_path.mkdir(parents=True)
     tf.keras.utils.plot_model(mdl, to_file=str(diagram_path / 'model.png'),
                               expand_nested=False, show_shapes=True, show_layer_names=False)
@@ -352,7 +349,16 @@ def train_and_record(parser: argparse.ArgumentParser):
   save = False if args.unsaved else True
   display = True if args.display else False
   unfreeze = args.unfreeze if args.unfreeze else 0
-  ckpt_load_path = pathlib.Path(args.checkpoint) if args.checkpoint else None
+  ckpt_load_path = utils.OUTPUTS / args.checkpoint if args.checkpoint else None
+  # Logs command line options
+  utils.create_commandline_options_log(
+    utils.OUTPUTS / timestamp,
+    {
+      'Epochs': epochs,
+      'Samples': samples,
+      'Unfreeze': unfreeze
+    }
+  )
   # Creates model to train
   model, optimizer, loss_fn = create_model(
     timestamp if save else None,
@@ -374,7 +380,7 @@ def train_and_record(parser: argparse.ArgumentParser):
     if not manager.latest_checkpoint:
       print("No checkpoint found!")
   # Creates a new checkpoint folder and manager to avoid overwriting old ones
-  ckpt_save_path = pathlib.Path('trainings') / timestamp / 'checkpoints'
+  ckpt_save_path = utils.OUTPUTS / timestamp / 'checkpoints'
   ckpt = tf.train.Checkpoint(optimizer=optimizer, model=model)
   manager = tf.train.CheckpointManager(ckpt, ckpt_save_path, max_to_keep=2)
   # Training loop
@@ -411,8 +417,8 @@ def train_and_record(parser: argparse.ArgumentParser):
       loss = test_step(model, batch, loss_fn)
       # Updates epoch test performance
       cumulative_loss += loss.numpy()
-      avg_step_loss = cumulative_loss / step
       step += 1
+    avg_step_loss = cumulative_loss / step
     print(' - Test Loss: {:.4f}'.format(
       avg_step_loss
     ))
@@ -421,7 +427,7 @@ def train_and_record(parser: argparse.ArgumentParser):
       manager.save()
   # Visualize a detection example (we pass the unprocessed ds to be able to recover the original img)
   ckpt.restore(manager.latest_checkpoint)
-  viewer.visualize_detection_example(model, train_unprocessed_ds, index_to_category)
+  viewer.visualize_detection_examples(model, train_unprocessed_ds, index_to_category)
 
 
 if __name__ == '__main__':
@@ -434,7 +440,7 @@ if __name__ == '__main__':
   parser.add_argument('--unsaved', help='Trained mode will not be saved on file', action='store_true')
   parser.add_argument('--samples', help='Max # of samples to keep in the dataset (Default: 1k)', type=int)
   parser.add_argument('--display', help='Display some examples from dataset', action='store_true')
-  parser.add_argument('--checkpoint', help='Path to model to load', type=str)
-  parser.add_argument('--unfreeze', help='Update parameters from transferred layers', type=int)
+  parser.add_argument('--checkpoint', help='Path to model to load (relative to $OUTPUTS)', type=str)
+  parser.add_argument('--unfreeze', help='Update parameters of transferred layers starting from top down', type=int)
   # Resumes or start training according to the options selected
   train_and_record(parser)

@@ -124,6 +124,6 @@ if __name__ == '__main__':
   args = parser.parse_args()
   # Creates sliding window detector
   detector = DogsDetector(utils.OUTPUTS / args.model, preprocess, window_step=8,
-                          window_size=[1, 2, 4, 6], threshold=0.85)
+                          window_size=[1, 2, 4, 6, 8], threshold=0.90)
   # Finds dogs in image
   detector.find_dogs(utils.DATASETS / args.path)

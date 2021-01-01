@@ -8,16 +8,13 @@ import tensorflow as tf
 import matplotlib.pyplot as plt
 from matplotlib import patches
 import argparse
-import sys
-sys.path.append('../../records generators')
 import stanford_dogs_localization_tfrecords_generator as stanford
 import coco_localization_tfrecords_generator as coco
 import utils
 
-# Constants
+# Other constants
 BATCH_SIZE = 32
 AUTOTUNE = tf.data.experimental.AUTOTUNE
-DATASETS = pathlib.Path('D:/datasets')
 BUFFER_SIZE = BATCH_SIZE * 32
 IMG_HEIGHT = 224
 IMG_WIDTH = 224
@@ -213,12 +210,12 @@ def display_classification_dataset(dataset: tf.data.Dataset):
 # Creates training dataset to perform classification only
 def create_train_classification_dataset(observations: int, transferred=False, display=False) -> Tuple:
   # Loads dogs examples
-  dogs_path = DATASETS / 'stanford_dogs/localization_records/train_list.mat/'
+  dogs_path = utils.DATASETS / 'stanford_dogs/localization_records/train_list.mat/'
   dogs_ds = tf.data.Dataset.from_tensor_slices([str(file) for file in dogs_path.glob("*.tfrecord*")])
   dogs_ds = dogs_ds.interleave(tf.data.TFRecordDataset, num_parallel_calls=AUTOTUNE, deterministic=True)
   dogs_ds = dogs_ds.map(parse_for_classification, num_parallel_calls=AUTOTUNE)
   # Loads others examples
-  others_path = DATASETS / 'coco/localization_records/train2014/'
+  others_path = utils.DATASETS / 'coco/localization_records/train2014/'
   others_ds = tf.data.Dataset.from_tensor_slices([str(file) for file in others_path.glob('*.tfrecord*')])
   others_ds = others_ds.interleave(tf.data.TFRecordDataset, num_parallel_calls=AUTOTUNE, deterministic=True)
   others_ds = others_ds.map(parse_for_classification, num_parallel_calls=AUTOTUNE)
@@ -262,12 +259,12 @@ def create_train_classification_dataset(observations: int, transferred=False, di
 # Creates testing dataset to perform classification only
 def create_test_classification_dataset(observations: int, transferred=False, display=False) -> Tuple:
   # Loads dogs examples
-  dogs_path = DATASETS / 'stanford_dogs/localization_records/test_list.mat/'
+  dogs_path = utils.DATASETS / 'stanford_dogs/localization_records/test_list.mat/'
   dogs_ds = tf.data.Dataset.from_tensor_slices([str(file) for file in dogs_path.glob("*.tfrecord*")])
   dogs_ds = dogs_ds.interleave(tf.data.TFRecordDataset, num_parallel_calls=AUTOTUNE, deterministic=True)
   dogs_ds = dogs_ds.map(parse_for_classification, num_parallel_calls=AUTOTUNE)
   # Loads others examples
-  others_path = DATASETS / 'coco/localization_records/val2014/'
+  others_path = utils.DATASETS / 'coco/localization_records/val2014/'
   others_ds = tf.data.Dataset.from_tensor_slices([str(file) for file in others_path.glob('*.tfrecord*')])
   others_ds = others_ds.interleave(tf.data.TFRecordDataset, num_parallel_calls=AUTOTUNE, deterministic=True)
   others_ds = others_ds.map(parse_for_classification, num_parallel_calls=AUTOTUNE)
@@ -307,15 +304,14 @@ def create_test_classification_dataset(observations: int, transferred=False, dis
 
 
 # Creates training dataset to perform classification and localization
-# Creates training dataset to perform classification and localization
 def create_train_localization_dataset(observations: int, transferred=False, display=False) -> Tuple:
   # Loads dogs examples
-  dogs_path = DATASETS / 'stanford_dogs/localization_records/train_list.mat/'
+  dogs_path = utils.DATASETS / 'stanford_dogs/localization_records/train_list.mat/'
   dogs_ds = tf.data.Dataset.from_tensor_slices([str(file) for file in dogs_path.glob("*.tfrecord*")])
   dogs_ds = dogs_ds.interleave(tf.data.TFRecordDataset, num_parallel_calls=AUTOTUNE, deterministic=True)
   dogs_ds = dogs_ds.map(parse_for_localization, num_parallel_calls=AUTOTUNE)
   # Loads others examples
-  others_path = DATASETS / 'coco/localization_records/train2014/'
+  others_path = utils.DATASETS / 'coco/localization_records/train2014/'
   others_ds = tf.data.Dataset.from_tensor_slices([str(file) for file in others_path.glob('*.tfrecord*')])
   others_ds = others_ds.interleave(tf.data.TFRecordDataset, num_parallel_calls=AUTOTUNE, deterministic=True)
   others_ds = others_ds.map(parse_for_localization, num_parallel_calls=AUTOTUNE)
@@ -364,12 +360,12 @@ def create_train_localization_dataset(observations: int, transferred=False, disp
 # Creates testing dataset to perform classification and localization
 def create_test_localization_dataset(observations: int, transferred=False, display=False) -> Tuple:
   # Loads dogs examples
-  dogs_path = DATASETS / 'stanford_dogs/localization_records/test_list.mat/'
+  dogs_path = utils.DATASETS / 'stanford_dogs/localization_records/test_list.mat/'
   dogs_ds = tf.data.Dataset.from_tensor_slices([str(file) for file in dogs_path.glob("*.tfrecord*")])
   dogs_ds = dogs_ds.interleave(tf.data.TFRecordDataset, num_parallel_calls=AUTOTUNE, deterministic=True)
   dogs_ds = dogs_ds.map(parse_for_localization, num_parallel_calls=AUTOTUNE)
   # Loads others examples
-  others_path = DATASETS / 'coco/localization_records/val2014/'
+  others_path = utils.DATASETS / 'coco/localization_records/val2014/'
   others_ds = tf.data.Dataset.from_tensor_slices([str(file) for file in others_path.glob('*.tfrecord*')])
   others_ds = others_ds.interleave(tf.data.TFRecordDataset, num_parallel_calls=AUTOTUNE, deterministic=True)
   others_ds = others_ds.map(parse_for_localization, num_parallel_calls=AUTOTUNE)
@@ -485,7 +481,7 @@ def create_localization_model(diagram_path: pathlib.Path = None) -> Tuple:
 # Creates transferred classification model
 def create_transferred_classification_model(diagram_path: pathlib.Path = None, unfreeze=0) -> Tuple:
   # Loading pre-trained base model
-  base_model = tf.keras.applications.resnet50.ResNet50(weights='imagenet', include_top=False)
+  base_model = tf.keras.applications.resnet50.ResNet50(weights=str(utils.RESNET50), include_top=False)
   # Avoid changing loaded weights of some (if not all) layers
   layer_count = len(base_model.layers)
   for index in range(layer_count - unfreeze):
@@ -518,7 +514,7 @@ def create_transferred_classification_model(diagram_path: pathlib.Path = None, u
 
 # Creates transferred localization model
 def create_transferred_localization_model(diagram_path: pathlib.Path = None, unfreeze=0) -> Tuple:
-  base_model = tf.keras.applications.resnet50.ResNet50(weights='imagenet', include_top=False)
+  base_model = tf.keras.applications.resnet50.ResNet50(weights=str(utils.RESNET50), include_top=False)
   # Avoid changing loaded weights of some (if not all) layers
   layer_count = len(base_model.layers)
   for index in range(layer_count - unfreeze):
@@ -566,7 +562,7 @@ def create_transferred_localization_model(diagram_path: pathlib.Path = None, unf
 # Creates a model based on selected options
 def create_model(timestamp: str = None, transferred: bool = False,
                  unfreeze: int = 0, localization: bool = True) -> tf.keras.Model:
-  diagram_path = pathlib.Path('./trainings') / timestamp / 'diagram' if timestamp else None
+  diagram_path = utils.OUTPUTS / timestamp / 'diagram' if timestamp else None
   if transferred:
     if localization:
       mdl = create_transferred_localization_model(diagram_path, unfreeze)
@@ -629,7 +625,18 @@ def train_and_checkpoint(parser):
   localization = True if args.localization else False
   transferred = True if args.transferred else False
   unfreeze = args.unfreeze if args.unfreeze else 0
-  ckpt_load_path = pathlib.Path(args.checkpoint) if args.checkpoint else None
+  ckpt_load_path = utils.OUTPUTS / args.checkpoint if args.checkpoint else None
+  # Logs command line options
+  utils.create_commandline_options_log(
+    utils.OUTPUTS / timestamp,
+    {
+      'Localization': localization,
+      'Epochs': epochs,
+      'Samples': samples,
+      'Transferred': transferred,
+      'Unfreeze': unfreeze
+    }
+  )
   # Creates model to train
   model, optimizer, loss_fn, metric_fn = create_model(
     timestamp if save else None,
@@ -655,7 +662,7 @@ def train_and_checkpoint(parser):
     if not manager.latest_checkpoint:
      print("No checkpoint found!")
   # Creates a new checkpoint folder and manager to avoid overwriting old ones
-  ckpt_save_path = pathlib.Path('./trainings') / timestamp / 'checkpoints'
+  ckpt_save_path = utils.OUTPUTS / timestamp / 'checkpoints'
   ckpt = tf.train.Checkpoint(optimizer=optimizer, model=model)
   manager = tf.train.CheckpointManager(ckpt, ckpt_save_path, max_to_keep=2)
   # Training loop
@@ -677,9 +684,11 @@ def train_and_checkpoint(parser):
       # Updates epoch training performance
       cumulative_loss += loss.numpy()
       avg_step_loss = cumulative_loss / step
-      print('\rEpoch {:}/{:}, Step {:}/{:}: Train Loss: {:.4f}, Train {}: {:.4f}'.format(
-        epoch, epochs, step, steps_per_epoch, avg_step_loss, metric_fn.name, metric
-      ), end='')
+      print(
+        f'\rEpoch {epoch}/{epochs}, Step {step}/{steps_per_epoch}:'
+        f' Train Loss: {avg_step_loss:.4f}, Train {metric_fn.name}: {metric:.4f}',
+        end=''
+      )
       step += 1
     # Verifies if a better model has been found
     if highest_metric is None or metric > highest_metric:
@@ -696,11 +705,9 @@ def train_and_checkpoint(parser):
       loss, metric = test_step(model, batch, loss_fn, metric_fn)
       # Updates epoch test performance
       cumulative_loss += loss.numpy()
-      avg_step_loss = cumulative_loss / step
       step += 1
-    print(' - Test Loss: {:.4f}, Test {:}: {:.4f}'.format(
-      avg_step_loss, metric_fn.name, metric
-    ))
+    avg_step_loss = cumulative_loss / step
+    print(f' - Test Loss: {avg_step_loss:.4f}, Test {metric_fn.name}: {metric:.4f}')
     # Saves checkpoint if requirements are met and if requested
     if save and found_better:
       manager.save()
@@ -722,7 +729,7 @@ if __name__ == '__main__':
   parser.add_argument('--display', help='Display some examples from dataset', action='store_true')
   parser.add_argument('--localization', help='Locations instead of just classification', action='store_true')
   parser.add_argument('--transferred', help='Use transferred learning', action='store_true')
-  parser.add_argument('--checkpoint', help='Path to model to load', type=str)
+  parser.add_argument('--checkpoint', help='Path to model to load relative to the outputs root directory', type=str)
   parser.add_argument('--unfreeze', help='Update parameters from transferred layers', type=int)
   # Resumes or start training according to the options selected
   train_and_checkpoint(parser)

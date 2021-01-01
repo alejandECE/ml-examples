@@ -6,7 +6,6 @@ from typing import Tuple
 import tensorflow_datasets as tfds
 import tensorflow as tf
 import datetime
-import pathlib
 import utils
 
 # Some constants & setups
@@ -154,14 +153,12 @@ def create_model(dropout_rate: float, l2_rate: float) -> tf.keras.Model:
     tf.keras.layers.Dropout(dropout_rate),
     tf.keras.layers.Conv2D(filters=64, kernel_size=3, activation='relu', padding='same',
                            kernel_initializer=tf.keras.initializers.he_uniform()),
-    tf.keras.layers.Dropout(dropout_rate),
     tf.keras.layers.Conv2D(filters=64, kernel_size=3, activation='relu', padding='same',
                            kernel_initializer=tf.keras.initializers.he_uniform()),
     tf.keras.layers.MaxPooling2D(pool_size=(2, 2)),
     tf.keras.layers.Dropout(dropout_rate),
     tf.keras.layers.Conv2D(filters=128, kernel_size=3, activation='relu', padding='same',
                            kernel_initializer=tf.keras.initializers.he_uniform()),
-    tf.keras.layers.Dropout(dropout_rate),
     tf.keras.layers.Conv2D(filters=128, kernel_size=3, activation='relu', padding='same',
                            kernel_initializer=tf.keras.initializers.he_uniform()),
     tf.keras.layers.MaxPooling2D(pool_size=(2, 2)),
@@ -169,7 +166,6 @@ def create_model(dropout_rate: float, l2_rate: float) -> tf.keras.Model:
     tf.keras.layers.Conv2D(filters=128, kernel_size=4, activation='relu',
                            kernel_initializer=tf.keras.initializers.he_uniform(),
                            kernel_regularizer=tf.keras.regularizers.l2(l2_rate)),
-    tf.keras.layers.Dropout(dropout_rate),
     tf.keras.layers.Conv2D(filters=1, kernel_size=1, activation='sigmoid')
   ])
   mdl.compile(
