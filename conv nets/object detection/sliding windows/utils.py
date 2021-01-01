@@ -5,9 +5,40 @@ from typing import Tuple
 import tensorflow as tf
 import numpy as np
 import pathlib
+import os
+import subprocess
 
-# Constants
-TFDS_DATA_DIR = pathlib.Path('E:/datasets/tfds')
+
+# Root folder to find datasets
+DATASETS = pathlib.Path(os.environ['DATASETS'])
+# Root folder to place outputs from this script
+OUTPUTS = pathlib.Path(os.environ['OUTPUTS'])
+# Path where the TFDS datasets are downloaded and stored
+TFDS_DATASETS = DATASETS / 'tfds'
+# Docker image to run container!
+DOCKER_IMAGE = 'ai-examples'
+
+
+# Creates a sh file to run tensorboard in docker container showing the logs in the path specified
+def create_tensorboard_docker_runner(trainings: pathlib.Path) -> None:
+  runner = trainings / 'start_tensorboard.sh'
+  # If it already exists do nothing!
+  if runner.exists():
+    return
+  # Creates file to run the container
+  with open(runner, 'w+') as file:
+    file.write('#!/usr/bin/env bash\n')
+    file.write(f'docker run --rm -it -p 6006:6006 -v "$PWD":{trainings} '
+               f'{DOCKER_IMAGE} tensorboard --logdir {trainings} --bind_all')
+  # Adds executable permission
+  subprocess.call(["chmod", "+x", str(trainings / 'start_tensorboard.sh')])
+
+
+# Creates file storing options passed to the command line when running script
+def create_commandline_options_log(logs_path: pathlib.Path, arguments:dict) -> None:
+  options = logs_path / 'options.txt'
+  with open(options, 'w+') as file:
+      file.write(str(arguments))
 
 
 # Computes accuracy and macro averaged metrics: precision, recall and fscore

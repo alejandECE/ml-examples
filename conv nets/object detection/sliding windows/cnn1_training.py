@@ -5,11 +5,11 @@ import argparse
 from typing import Tuple
 import tensorflow as tf
 import os
-import pathlib
 import datetime
 import utils
 
 # Some constants & setups
+PATH_PREFIX = 'cnn1'
 AUTOTUNE = tf.data.experimental.AUTOTUNE
 BATCH_SIZE = 64
 IMG_HEIGHT = 64
@@ -48,14 +48,12 @@ def get_data_from_path(file_path: tf.Tensor) -> Tuple:
 # Creates dataset
 def create_dataset() -> Tuple:
   # Builds path to the images in disk
-  data_dir = pathlib.Path('E:/datasets/classification/cats and dogs/')
+  data_dir = utils.DATASETS / 'classification/cats and dogs/'
   # Builds tf.data.Dataset listing filenames (files always shuffled)
   path_ds = tf.data.Dataset.list_files(str(data_dir / '*/*/*.jpg'), shuffle=False)
-  print(path_ds.element_spec)
   print('Number of files to load: {}'.format(path_ds.cardinality()))
   # Builds tf.data.Dataset with the image data and its label
   labeled_ds = path_ds.map(get_data_from_path, num_parallel_calls=AUTOTUNE)
-  print(labeled_ds.element_spec)
   labeled_ds = labeled_ds.map(lambda img, label: (preprocess(img), label), num_parallel_calls=AUTOTUNE).cache()
   # Splits into training/test sets
   labeled_ds = labeled_ds.shuffle(buffer_size=BUFFER_SIZE, reshuffle_each_iteration=False)
@@ -117,13 +115,22 @@ if __name__ == '__main__':
   training_ds, testing_ds = create_dataset()
   # Creates model
   model = create_model()
-  model_path = pathlib.Path('trained_model/cnn1/') / timestamp
+  model_path = utils.OUTPUTS / PATH_PREFIX / timestamp / 'model'
   model_path.mkdir(parents=True)
   # Sets callbacks if needed
   callbacks = []
-  # Adds logging to show in tensorboard
-  log_path = pathlib.Path("./logs") / timestamp
+  # Adds logging
+  log_path = utils.OUTPUTS / PATH_PREFIX / timestamp / 'logs'
   log_path.mkdir(parents=True)
+  # Creates docker runner file
+  utils.create_tensorboard_docker_runner(utils.OUTPUTS / PATH_PREFIX)
+  # Logs command line options
+  utils.create_commandline_options_log(
+    log_path,
+    {
+      'Epochs': epochs,
+    }
+  )
   if tensorboard:
     tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=str(log_path), profile_batch=0)
     callbacks.append(tensorboard_callback)

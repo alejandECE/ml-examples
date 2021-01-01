@@ -10,6 +10,7 @@ import argparse
 import utils
 
 # Some constants & setups
+PATH_PREFIX = 'cnn2'
 AUTOTUNE = tf.data.experimental.AUTOTUNE
 BATCH_SIZE = 32
 IMG_HEIGHT = 64
@@ -41,11 +42,11 @@ def augmented_preprocess(img: tf.Tensor) -> Tuple:
 
 # Augments image by applying random transformations
 @tf.function
-def augment(img: tf.Tensor, label: tf.Tensor) -> Tuple:
+def augment(img: tf.Tensor) -> Tuple:
   img = tf.image.random_crop(img, size=(IMG_HEIGHT, IMG_WIDTH, 3))
   img = tf.image.random_flip_left_right(img)
   img = tf.image.random_brightness(img, max_delta=0.5)
-  return img, label
+  return img
 
 
 # Creates dataset without augmentation
@@ -55,7 +56,7 @@ def create_dataset() -> Tuple:
                  split='train',
                  as_supervised=True,
                  shuffle_files=False,
-                 data_dir=utils.TFDS_DATA_DIR)
+                 data_dir=utils.TFDS_DATASETS)
   # Preprocess images
   ds = ds.map(lambda img, label: (preprocess(img), label), num_parallel_calls=AUTOTUNE).cache()
   # Splits into training/test sets
@@ -78,21 +79,21 @@ def create_augmented_dataset() -> Tuple:
                  split='train',
                  as_supervised=True,
                  shuffle_files=False,
-                 data_dir=utils.TFDS_DATA_DIR)
+                 data_dir=utils.TFDS_DATASETS)
   # Splits into training/test sets
   ds = ds.shuffle(buffer_size=BUFFER_SIZE, reshuffle_each_iteration=False)
   test_ds = ds.take(TEST_SIZE)
   train_ds = ds.skip(TEST_SIZE)
   # Preprocess before augmenting (can be cached)
-  train_ds = train_ds.map(augmented_preprocess, num_parallel_calls=AUTOTUNE).cache()
+  train_ds = train_ds.map(lambda img, label: (augmented_preprocess(img), label), num_parallel_calls=AUTOTUNE).cache()
   # Augment training dataset (we don't cache this)
-  train_ds = train_ds.map(augment, num_parallel_calls=AUTOTUNE)
+  train_ds = train_ds.map(lambda img, label: (augment(img), label), num_parallel_calls=AUTOTUNE)
   # Optimizes and batches for training
   train_ds = train_ds.shuffle(buffer_size=BUFFER_SIZE)
   train_ds = train_ds.batch(BATCH_SIZE)
   train_ds = train_ds.prefetch(buffer_size=AUTOTUNE)
   # Preprocess and batches test set
-  test_ds = test_ds.map(preprocess, num_parallel_calls=AUTOTUNE).cache()
+  test_ds = test_ds.map(lambda img, label: (preprocess(img), label), num_parallel_calls=AUTOTUNE).cache()
   test_ds = test_ds.batch(BATCH_SIZE).prefetch(buffer_size=AUTOTUNE)
   return train_ds, test_ds
 
@@ -149,13 +150,24 @@ if __name__ == '__main__':
     training_ds, testing_ds = create_dataset()
   # Creates model
   model = create_model()
-  model_path = pathlib.Path('trained_model/cnn2/') / timestamp
+  model_path = utils.OUTPUTS / PATH_PREFIX / timestamp / 'model'
   model_path.mkdir(parents=True)
   # Sets callbacks if needed
   callbacks = []
   # Adds logging to show in tensorboard
-  log_path = pathlib.Path("./logs") / timestamp
+  log_path = utils.OUTPUTS / PATH_PREFIX / timestamp / 'logs'
   log_path.mkdir(parents=True)
+  # Creates docker runner file
+  utils.create_tensorboard_docker_runner(utils.OUTPUTS / PATH_PREFIX)
+  utils.create_tensorboard_docker_runner(utils.OUTPUTS / PATH_PREFIX)
+  # Logs command line options
+  utils.create_commandline_options_log(
+    log_path,
+    {
+      'Augmentation': augmentation,
+      'Epochs': epochs,
+    }
+  )
   if tensorboard:
     tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=str(log_path), profile_batch=0)
     callbacks.append(tensorboard_callback)

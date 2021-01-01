@@ -11,6 +11,7 @@ from matplotlib.colors import ListedColormap
 import numpy as np
 import tensorflow as tf
 import math
+import utils
 
 # Constants
 INPUT_HEIGHT = 32
@@ -32,7 +33,7 @@ class DogsDetector:
 
     :param model_path: Path to the CNN stored as *.pb model.
     :param preprocess_fnc: Function reference to perform preprocessing
-    :param window_size: List of window sizes to try out.
+    :param window_size: List of window sizes to try out given as multiples of INPUT_HEIGHT and INPUT_WIDTH.
     :param window_step: Step size (Sliding step)
     :param threshold: Probability threshold to assume a dog has been detected.
     """
@@ -46,9 +47,9 @@ class DogsDetector:
     self.preprocess_fnc = preprocess_fnc
     # Window size and step
     if window_size is None:
-      self.window_size = [4]
+      self.window_size = [1]
     if window_step is None:
-      self.window_step = 32
+      self.window_step = 8
 
   # Initializes the progress bar
   def __setup_progress(self, total_windows: float) -> None:
@@ -130,13 +131,11 @@ if __name__ == '__main__':
   tf.config.experimental.set_memory_growth(physical_devices[0], True)
   # Defines arguments
   parser = argparse.ArgumentParser()
-  parser.add_argument('--model', help='Model path', type=str)
-  parser.add_argument('--image', help='Image path', type=str)
+  parser.add_argument('path', help='Path to image (relative to $DATASETS)', type=str)
+  parser.add_argument('model', help='Path to model (relative the $OUTPUT)', type=str)
   # Parses arguments
   args = parser.parse_args()
-  model_path = pathlib.Path(args.model) if args.model else pathlib.Path('trained_model/cnn4/20200716-145223/')
-  image_path = pathlib.Path(args.image) if args.image else pathlib.Path('images/search one dog 1.jpg')
   # Creates sliding window detector
-  detector = DogsDetector(model_path, preprocess, threshold=0.85)
+  detector = DogsDetector(utils.OUTPUTS / args.model, preprocess, window_size=[1, 2], window_step=8, threshold=0.85)
   # Finds dogs in image
-  detector.find_dogs(image_path)
+  detector.find_dogs(utils.DATASETS / args.path)

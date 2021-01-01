@@ -10,6 +10,7 @@ import pathlib
 import utils
 
 # Some constants & setups
+PATH_PREFIX = 'cnn4'
 AUTOTUNE = tf.data.experimental.AUTOTUNE
 BATCH_SIZE = 32
 IMG_HEIGHT = 32
@@ -20,7 +21,7 @@ BUFFER_SIZE = 22000
 
 # Filters out cats observations (label: 0) from cats/dogs dataset
 @tf.function
-def filter_cats_out(label: tf.Tensor) -> tf.Tensor:
+def filter_cats_out(label: tf.Tensor) -> bool:
   if tf.math.equal(label, tf.constant(0, dtype=tf.int64)):
     return False
   else:
@@ -39,7 +40,7 @@ def preprocess(img: tf.Tensor) -> tf.Tensor:
 
 # Preprocess all images when augmentation is used
 @tf.function
-def augmented_preprocess(img: tf.Tensor, label: tf.Tensor) -> tf.Tensor:
+def augmented_preprocess(img: tf.Tensor, label: tf.Tensor) -> Tuple:
   # It only normalizes from [0, MAX) if the input arg is not a tf.float32 already
   img = tf.image.convert_image_dtype(img, dtype=tf.float32)
   # Increase in size a little to then apply a random crop and retain original size
@@ -66,7 +67,7 @@ def create_dataset(observations: int, test_size: float) -> Tuple:
                       as_supervised=True,
                       split='train',
                       shuffle_files=False,
-                      data_dir=utils.TFDS_DATA_DIR)
+                      data_dir=utils.TFDS_DATASETS)
   dogs_ds = dogs_ds.filter(lambda image, label: filter_cats_out(label))
   dogs_ds = dogs_ds.take(observations // 2)
   dogs_ds = dogs_ds.map(lambda image, label: (preprocess(image), tf.constant(1, dtype=tf.int64, shape=(1, 1, 1))),
@@ -76,7 +77,7 @@ def create_dataset(observations: int, test_size: float) -> Tuple:
                         as_supervised=True,
                         split='train',
                         shuffle_files=False,
-                        data_dir=utils.TFDS_DATA_DIR)
+                        data_dir=utils.TFDS_DATASETS)
   others_ds = others_ds.take(observations // 2)
   # Change label of all observations in cifar-100 to 0 (class others)
   others_ds = others_ds.map(lambda image, label: (preprocess(image), tf.constant(0, dtype=tf.int64, shape=(1, 1, 1))),
@@ -104,7 +105,7 @@ def create_augmented_dataset(observations: int, test_size: float) -> Tuple:
                       as_supervised=True,
                       split='train',
                       shuffle_files=False,
-                      data_dir=utils.TFDS_DATA_DIR)
+                      data_dir=utils.TFDS_DATASETS)
   dogs_ds = dogs_ds.filter(lambda image, label: filter_cats_out(label))
   dogs_ds = dogs_ds.take(observations // 2)
   dogs_ds = dogs_ds.map(lambda image, label: (image, tf.constant(1, dtype=tf.int64, shape=(1, 1, 1))),
@@ -114,7 +115,7 @@ def create_augmented_dataset(observations: int, test_size: float) -> Tuple:
                         as_supervised=True,
                         split='train',
                         shuffle_files=False,
-                        data_dir=utils.TFDS_DATA_DIR)
+                        data_dir=utils.TFDS_DATASETS)
   others_ds = others_ds.take(observations // 2)
   # Change label of all observations in cifar-100 to 0 (class others)
   others_ds = others_ds.map(lambda image, label: (image, tf.constant(0, dtype=tf.int64, shape=(1, 1, 1))),
@@ -126,19 +127,18 @@ def create_augmented_dataset(observations: int, test_size: float) -> Tuple:
   test_ds = mixed_ds.take(int(observations * test_size))
   train_ds = mixed_ds.skip(int(observations * test_size))
   # Applies pre-processing transformations to the training dataset
-  augmented_ds = train_ds.map(lambda image, label: (augmented_preprocess(image), label),
-                              num_parallel_calls=AUTOTUNE).cache()
+  augmented_ds = train_ds.map(augmented_preprocess, num_parallel_calls=AUTOTUNE).cache()
   # Augment training dataset (we don't cache this)
   augmented_ds = augmented_ds.map(lambda image, label: (augment(image), label), num_parallel_calls=AUTOTUNE)
   # Combines both datasets
-  train_ds = train_ds.map(preprocess, num_parallel_calls=AUTOTUNE).cache()
+  train_ds = train_ds.map(lambda image, label: (preprocess(image), label), num_parallel_calls=AUTOTUNE).cache()
   train_ds = train_ds.concatenate(augmented_ds)
   # Optimizes and batches for training
   train_ds = train_ds.shuffle(buffer_size=BUFFER_SIZE)
   train_ds = train_ds.batch(BATCH_SIZE)
   train_ds = train_ds.prefetch(buffer_size=AUTOTUNE)
   # Preprocess and batches test set
-  test_ds = test_ds.map(preprocess, num_parallel_calls=AUTOTUNE).cache()
+  test_ds = test_ds.map(lambda image, label: (preprocess(image), label), num_parallel_calls=AUTOTUNE).cache()
   test_ds = test_ds.batch(BATCH_SIZE).prefetch(buffer_size=AUTOTUNE)
   return train_ds, test_ds
 
@@ -217,13 +217,27 @@ if __name__ == '__main__':
     training_ds, testing_ds = create_dataset(observations=samples, test_size=test_pct)
   # Creates model
   model = create_model(dropout_rate=dropout, l2_rate=l2)
-  model_path = pathlib.Path('trained_model/cnn4/') / timestamp
+  model_path = utils.OUTPUTS / PATH_PREFIX / timestamp / 'model'
   model_path.mkdir(parents=True)
   # Sets callbacks if needed
   callbacks = []
   # Adds logging to show in tensorboard
-  log_path = pathlib.Path("./logs") / timestamp
+  log_path = utils.OUTPUTS / PATH_PREFIX / timestamp / 'logs'
   log_path.mkdir(parents=True)
+  # Creates docker runner file
+  utils.create_tensorboard_docker_runner(utils.OUTPUTS / PATH_PREFIX)
+  # Logs command line options
+  utils.create_commandline_options_log(
+    log_path,
+    {
+      'Augmentation': augmentation,
+      'Epochs': epochs,
+      'Samples': samples,
+      'Test %': test_pct,
+      'Dropout': dropout,
+      'L2': l2
+    }
+  )
   if tensorboard:
     tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=str(log_path))
     callbacks.append(tensorboard_callback)

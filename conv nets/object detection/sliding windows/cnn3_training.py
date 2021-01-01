@@ -6,10 +6,10 @@ from typing import Tuple
 import tensorflow_datasets as tfds
 import tensorflow as tf
 import datetime
-import pathlib
 import utils
 
 # Some constants & setups
+PATH_PREFIX = 'cnn3'
 AUTOTUNE = tf.data.experimental.AUTOTUNE
 BATCH_SIZE = 32
 IMG_HEIGHT = 32
@@ -66,7 +66,7 @@ def create_dataset(observations: int, test_size: float) -> Tuple:
                       as_supervised=True,
                       split='train',
                       shuffle_files=False,
-                      data_dir=utils.TFDS_DATA_DIR)
+                      data_dir=utils.TFDS_DATASETS)
   dogs_ds = dogs_ds.filter(lambda image, label: filter_cats_out(label)).take(observations // 2)
   dogs_ds = dogs_ds.map(lambda image, label: (preprocess(image), label), num_parallel_calls=AUTOTUNE).cache()
   # Downloads and creates a td.data.Dataset with other categories pictures
@@ -74,7 +74,7 @@ def create_dataset(observations: int, test_size: float) -> Tuple:
                         as_supervised=True,
                         split='train',
                         shuffle_files=False,
-                        data_dir=utils.TFDS_DATA_DIR)
+                        data_dir=utils.TFDS_DATASETS)
   others_ds = others_ds.take(observations // 2)
   # Change label of all observations in cifar-100 to 0 (class others)
   others_ds = others_ds.map(lambda image, label: (image, tf.constant(0, dtype=tf.int64)),
@@ -103,14 +103,14 @@ def create_augmented_dataset(observations: int, test_size: float) -> Tuple:
                       as_supervised=True,
                       split='train',
                       shuffle_files=False,
-                      data_dir=utils.TFDS_DATA_DIR)
+                      data_dir=utils.TFDS_DATASETS)
   dogs_ds = dogs_ds.filter(lambda image, label: filter_cats_out(label)).take(observations // 2)
   # Downloads and creates a td.data.Dataset with other categories pictures
   others_ds = tfds.load('cifar100',
                         as_supervised=True,
                         split='train',
                         shuffle_files=False,
-                        data_dir=utils.TFDS_DATA_DIR)
+                        data_dir=utils.TFDS_DATASETS)
   others_ds = others_ds.take(observations // 2)
   # Change label of all observations in cifar-100 to 0 (class others)
   others_ds = others_ds.map(lambda image, label: (image, tf.constant(0, dtype=tf.int64)),
@@ -126,14 +126,14 @@ def create_augmented_dataset(observations: int, test_size: float) -> Tuple:
   # Augment training dataset (we don't cache this)
   augmented_ds = augmented_ds.map(augment, num_parallel_calls=AUTOTUNE)
   # Combines both datasets
-  train_ds = train_ds.map(preprocess, num_parallel_calls=AUTOTUNE).cache()
+  train_ds = train_ds.map(lambda image, label: (preprocess(image), label), num_parallel_calls=AUTOTUNE).cache()
   train_ds = train_ds.concatenate(augmented_ds)
   # Optimizes and batches for training
   train_ds = train_ds.shuffle(buffer_size=BUFFER_SIZE)
   train_ds = train_ds.batch(BATCH_SIZE)
   train_ds = train_ds.prefetch(buffer_size=AUTOTUNE)
   # Preprocess and batches test set
-  test_ds = test_ds.map(preprocess, num_parallel_calls=AUTOTUNE).cache()
+  test_ds = test_ds.map(lambda image, label: (preprocess(image), label), num_parallel_calls=AUTOTUNE).cache()
   test_ds = test_ds.batch(BATCH_SIZE).prefetch(buffer_size=AUTOTUNE)
   return train_ds, test_ds
 
@@ -202,12 +202,26 @@ if __name__ == '__main__':
     training_ds, testing_ds = create_dataset(observations=samples, test_size=test_pct)
   # Creates model
   model = create_model(dropout_rate=dropout, l2_rate=l2)
-  model_path = pathlib.Path('trained_model/cnn3/') / timestamp
+  model_path = utils.OUTPUTS / PATH_PREFIX / timestamp / 'model'
   # Sets callbacks if needed
   callbacks = []
   # Adds logging to show in tensorboard
-  log_path = pathlib.Path("./logs") / timestamp
+  log_path = utils.OUTPUTS / PATH_PREFIX / timestamp / 'logs'
   log_path.mkdir(parents=True)
+  # Creates docker runner file
+  utils.create_tensorboard_docker_runner(utils.OUTPUTS / PATH_PREFIX)
+  # Logs command line options
+  utils.create_commandline_options_log(
+    log_path,
+    {
+      'Augmentation': augmentation,
+      'Epochs': epochs,
+      'Samples': samples,
+      'Test %': test_pct,
+      'Dropout': dropout,
+      'L2': l2
+    }
+  )
   if tensorboard:
     tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=str(log_path), profile_batch=0)
     callbacks.append(tensorboard_callback)

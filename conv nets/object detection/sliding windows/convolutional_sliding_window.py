@@ -10,6 +10,7 @@ from PIL import Image
 import matplotlib.pyplot as plt
 from bbox import BoundingBox
 from matplotlib.colors import ListedColormap
+import utils
 
 # Constants
 INPUT_HEIGHT = 32
@@ -117,13 +118,12 @@ if __name__ == '__main__':
   tf.config.experimental.set_memory_growth(physical_devices[0], True)
   # Defines arguments
   parser = argparse.ArgumentParser()
-  parser.add_argument('--model', help='Model path', type=str)
-  parser.add_argument('--image', help='Image path', type=str)
+  parser.add_argument('path', help='Path to image (relative to $DATASETS)', type=str)
+  parser.add_argument('model', help='Path to model (relative the $OUTPUT)', type=str)
   # Parses arguments
   args = parser.parse_args()
-  model_path = pathlib.Path(args.model) if args.model else pathlib.Path('trained_model/cnn4/20200716-145223/')
-  image_path = pathlib.Path(args.image) if args.image else pathlib.Path('images/search multiple dogs 1.jpg')
   # Creates sliding window detector
-  detector = DogsDetector(model_path, preprocess, window_step=8, window_size=[4], threshold=0.85)
+  detector = DogsDetector(utils.OUTPUTS / args.model, preprocess, window_step=8,
+                          window_size=[1, 2, 4, 6], threshold=0.85)
   # Finds dogs in image
-  detector.find_dogs(image_path)
+  detector.find_dogs(utils.DATASETS / args.path)
