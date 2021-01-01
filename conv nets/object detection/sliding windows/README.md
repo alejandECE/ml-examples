@@ -1,0 +1,3 @@
+### Convolutional sliding windows
+This (sub)repo has a demonstration of the use of convolutional sliding windows for building a dog detector (localizes dogs in a image). It is a toy example not aimed to improved the state of the art but instead to provide understanding in the subject matter.
+I first implement a simple inefficient [sliding window approach](/sliding_window.py)....
