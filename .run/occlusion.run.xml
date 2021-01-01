@@ -1,0 +1,77 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="occlusion" type="PythonConfigurationType" factoryName="Python" nameIsGenerated="true">
+    <module name="ai-examples" />
+    <option name="INTERPRETER_OPTIONS" value="" />
+    <option name="PARENT_ENVS" value="true" />
+    <envs>
+      <env name="PYTHONUNBUFFERED" value="1" />
+    </envs>
+    <option name="SDK_HOME" value="" />
+    <option name="WORKING_DIRECTORY" value="" />
+    <option name="IS_MODULE_SDK" value="true" />
+    <option name="ADD_CONTENT_ROOTS" value="true" />
+    <option name="ADD_SOURCE_ROOTS" value="true" />
+    <EXTENSION ID="DockerContainerSettingsRunConfigurationExtension">
+      <option name="envVars">
+        <list />
+      </option>
+      <option name="extraHosts">
+        <list />
+      </option>
+      <option name="links">
+        <list />
+      </option>
+      <option name="networkDisabled" value="false" />
+      <option name="networkMode" value="bridge" />
+      <option name="portBindings">
+        <list />
+      </option>
+      <option name="publishAllPorts" value="false" />
+      <option name="runCliOptions" value="--gpus all --rm --env DISPLAY=:1" />
+      <option name="version" value="2" />
+      <option name="volumeBindings">
+        <list>
+          <DockerVolumeBindingImpl>
+            <option name="containerPath" value="/opt/project" />
+            <option name="editable" value="true" />
+            <option name="hostPath" value="$PROJECT_DIR$" />
+            <option name="readOnly" value="false" />
+          </DockerVolumeBindingImpl>
+          <DockerVolumeBindingImpl>
+            <option name="containerPath" value="$PROJECT_DIR$/../../../worker/datasets" />
+            <option name="editable" value="true" />
+            <option name="hostPath" value="/media/alejand/Datasets/datasets" />
+            <option name="readOnly" value="true" />
+          </DockerVolumeBindingImpl>
+          <DockerVolumeBindingImpl>
+            <option name="containerPath" value="$PROJECT_DIR$/../../../worker/outputs" />
+            <option name="editable" value="true" />
+            <option name="hostPath" value="$PROJECT_DIR$/conv nets/visualizations/occlusion/outputs" />
+            <option name="readOnly" value="false" />
+          </DockerVolumeBindingImpl>
+          <DockerVolumeBindingImpl>
+            <option name="containerPath" value="$PROJECT_DIR$/../../../worker/weights" />
+            <option name="editable" value="true" />
+            <option name="hostPath" value="$PROJECT_DIR$/../weights" />
+            <option name="readOnly" value="true" />
+          </DockerVolumeBindingImpl>
+          <DockerVolumeBindingImpl>
+            <option name="containerPath" value="/tmp/.X11-unix" />
+            <option name="editable" value="true" />
+            <option name="hostPath" value="/tmp/.X11-unix" />
+            <option name="readOnly" value="true" />
+          </DockerVolumeBindingImpl>
+        </list>
+      </option>
+    </EXTENSION>
+    <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+    <option name="SCRIPT_NAME" value="$PROJECT_DIR$/conv nets/visualizations/occlusion/occlusion.py" />
+    <option name="PARAMETERS" value="" />
+    <option name="SHOW_COMMAND_LINE" value="false" />
+    <option name="EMULATE_TERMINAL" value="false" />
+    <option name="MODULE_MODE" value="false" />
+    <option name="REDIRECT_INPUT" value="false" />
+    <option name="INPUT_FILE" value="" />
+    <method v="2" />
+  </configuration>
+</component>
