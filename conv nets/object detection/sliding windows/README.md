@@ -7,4 +7,4 @@ A quick summary on some of the main script:
 * Script [cnn3_training.py](./cnn3_training.py) is the training script to get a CNN with a classification and regression head (using fully connected layers). The resulting network is the one used in the sliding window script.
 * Script [cnn4_training.py](./cnn4_training.py) trains the fully convolutional network.
 
-All trainings and graphs are logged for visualization in Tensorboard. A video showing this can be found [here](https://youtu.be/Ec9BTzexaQY). Results applying the [convolutional sliding window approach](./convolutional_sliding_window.py) are shown [here](https://youtu.be/XHPVU3sZznE)
+All trainings and graphs are logged for visualization in Tensorboard (a [script is created automatically](./utils.py#L23) to run a docker container hosting the corresponding logs). A video showing this can be found [here](https://youtu.be/Ec9BTzexaQY). Results applying the [convolutional sliding window approach](./convolutional_sliding_window.py) are shown [here](https://youtu.be/XHPVU3sZznE)
