@@ -7,3 +7,8 @@ linear regression/*/saved
 *.jpg
 *.png
 *.npz
+*.json
+*.csv
+*.txt
+checkpoints
+models
