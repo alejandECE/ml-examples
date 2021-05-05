@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="occlusion" type="PythonConfigurationType" factoryName="Python" nameIsGenerated="true">
+  <configuration default="false" name="saliency" type="PythonConfigurationType" factoryName="Python">
     <module name="ai-examples" />
     <option name="INTERPRETER_OPTIONS" value="" />
     <option name="PARENT_ENVS" value="true" />
@@ -46,7 +46,7 @@
           <DockerVolumeBindingImpl>
             <option name="containerPath" value="$PROJECT_DIR$/../../../worker/outputs" />
             <option name="editable" value="true" />
-            <option name="hostPath" value="$PROJECT_DIR$/conv nets/visualizations/occlusion/outputs" />
+            <option name="hostPath" value="$PROJECT_DIR$/conv nets/visualizations/saliency/outputs" />
             <option name="readOnly" value="false" />
           </DockerVolumeBindingImpl>
           <DockerVolumeBindingImpl>
@@ -65,7 +65,7 @@
       </option>
     </EXTENSION>
     <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
-    <option name="SCRIPT_NAME" value="$PROJECT_DIR$/conv nets/visualizations/occlusion/occlusion.py" />
+    <option name="SCRIPT_NAME" value="$PROJECT_DIR$/conv nets/visualizations/saliency/saliency.py" />
     <option name="PARAMETERS" value="--image /media/alejand/DatasetsT7/datasets/stanford_dogs/images/n02094114-Norfolk_terrier/n02094114_1745.jpg" />
     <option name="SHOW_COMMAND_LINE" value="false" />
     <option name="EMULATE_TERMINAL" value="false" />
