@@ -1,4 +1,4 @@
-#  Created by Luis Alejandro (alejand@umich.edu).
+#  Created by Luis Alejandro (l.alejandro.2011@gmail.com).
 #  Copyright © Do not distribute or use without authorization from author
 
 from typing import Tuple
@@ -7,6 +7,7 @@ import pathlib
 import pandas as pd
 import os
 import argparse
+from tqdm import tqdm
 
 DATASETS = pathlib.Path(os.environ['DATASETS'])
 
@@ -49,7 +50,7 @@ def process_raw_ratings_from_csv(ratings: pd.DataFrame) -> Tuple[pd.DataFrame, d
   return ratings, user_to_index, movie_to_index
 
 
-def load_index_mapping_from(textfile) -> dict:
+def load_mapping_to_index_from(textfile) -> dict:
   with open(textfile) as file:
     mapping = {int(entry.strip()): index for index, entry in enumerate(file.readlines())}
   return mapping
@@ -68,7 +69,7 @@ def split_at_random(ratings: pd.DataFrame, test_pct: float) -> Tuple[pd.DataFram
   rows_per_user = np.split(np.argsort(indices), np.cumsum(unique_counts)[:-1])
   train = []
   test = []
-  for i in range(unique_users.shape[0]):
+  for i in tqdm(range(unique_users.shape[0])):
     samples = int(unique_counts[i] * test_pct)
     train.extend(rows_per_user[i][:-samples])
     test.extend(rows_per_user[i][-samples:])
@@ -76,25 +77,61 @@ def split_at_random(ratings: pd.DataFrame, test_pct: float) -> Tuple[pd.DataFram
   return ratings.iloc[train, :], ratings.iloc[test, :]
 
 
-def split_by_timestamp(ratings: pd.DataFrame, test_pct: float) -> Tuple[pd.DataFrame, pd.DataFrame]:
+def split_by_timestamp(ratings: pd.DataFrame, leave_out: int = 1) -> Tuple[pd.DataFrame, pd.DataFrame]:
   ratings.sort_values(by=['userId', 'timestamp'], inplace=True)
   # Find unique users, and counts of ratings per user
   unique_users, unique_counts = np.unique(ratings['userId'], return_counts=True)
   rows_per_user = np.split(np.arange(len(ratings)), np.cumsum(unique_counts)[:-1])
   train = []
   test = []
-  for i in range(unique_users.shape[0]):
-    samples = int(unique_counts[i] * test_pct)
-    train.extend(rows_per_user[i][:-samples])
-    test.extend(rows_per_user[i][-samples:])
+  for i in tqdm(range(unique_users.shape[0])):
+    train.extend(rows_per_user[i][:-leave_out])
+    test.extend(rows_per_user[i][-leave_out:])
 
   return ratings.iloc[train, :], ratings.iloc[test, :]
 
 
+def split_by_sequence(ratings: pd.DataFrame, length: int = 5) -> Tuple[pd.DataFrame, pd.DataFrame]:
+  # Activates tqdm for pandas
+  tqdm.pandas()
+
+  # Sorts by timestamp
+  ratings.sort_values(by='timestamp', inplace=True, ascending=True)
+
+  # Groups by user
+  groups = ratings.groupby(by='userId', group_keys=False)
+
+  # Selects only the last rating from each user as the test set
+  test_df = groups.progress_apply(
+    lambda entry: entry.iloc[[-1], :]
+  ).drop(columns=['rating', 'timestamp'])
+  test_df.rename(columns={'movieId': 'target'}, inplace=True)
+
+  # Builds sequences for training
+  train_df = groups.progress_apply(lambda entry: entry.iloc[:-1, :])
+
+  def generate_sequences(user_data):
+    user = user_data['userId'].values[0]
+    movies = user_data['movieId'].values
+    if len(movies) < length + 1:
+      return
+    indices = np.repeat(np.array(range(length + 1), ndmin=2), repeats=len(movies) - length, axis=0)
+    indices += np.expand_dims(np.array(range(len(movies) - length)), axis=-1)
+    sequences = np.take(movies, indices, axis=0)
+    return pd.DataFrame(
+      data=np.concatenate((np.expand_dims(np.repeat(user, len(movies) - length), axis=-1), sequences), axis=1),
+      columns=['userId'] + [str(i) for i in range(length)] + ['target']
+    )
+
+  train_df = train_df.groupby(by='userId', group_keys=False).progress_apply(generate_sequences)
+
+  return train_df, test_df
+
+
 # Loads ratings from the proper csv file (creates splitting if does not exist)
-def load_ratings_20m(timestamp=False, test_pct=5e-4) -> Tuple:
+def load_ratings_20m(split: str = 'random', test_pct=5e-4) -> Tuple:
   # Splits folder
-  folder = ROOT / f'data/ml-20m/splits/{"timestamp" if timestamp else "random"}'
+  folder = ROOT / f'data/ml-20m/splits/{split}'
   # If files don't exist create them
   if not folder.exists():
     folder.mkdir(parents=True)
@@ -107,7 +144,14 @@ def load_ratings_20m(timestamp=False, test_pct=5e-4) -> Tuple:
     save_index_mapping_to(folder / 'movie_to_index.txt', movie_to_index)
 
     # Splits
-    train_df, test_df = split_by_timestamp(ratings, test_pct) if timestamp else split_at_random(ratings, test_pct)
+    if split == 'random':
+      train_df, test_df = split_at_random(ratings, test_pct)
+    elif split == 'timestamp':
+      train_df, test_df = split_by_timestamp(ratings)
+    elif split == 'sequence':
+      train_df, test_df = split_by_sequence(ratings)
+    else:
+      raise Exception('Split method not recognized')
 
     # Stores
     train_df.to_csv(folder / 'train_df.csv', index=False)
@@ -121,16 +165,16 @@ def load_ratings_20m(timestamp=False, test_pct=5e-4) -> Tuple:
   return (
     pd.read_csv(folder / 'train_df.csv'),
     pd.read_csv(folder / 'test_df.csv'),
-    load_index_mapping_from(folder / 'user_to_index.txt'),
-    load_index_mapping_from(folder / 'movie_to_index.txt'),
+    load_mapping_to_index_from(folder / 'user_to_index.txt'),
+    load_mapping_to_index_from(folder / 'movie_to_index.txt'),
     movie_to_title
   )
 
 
 # Loads ratings from the proper csv file (creates splitting if does not exist)
-def load_ratings_100k(timestamp=False, test_pct=1e-1) -> Tuple:
+def load_ratings_100k(split: str = 'random', test_pct=1e-1) -> Tuple:
   # Splits folder
-  folder = ROOT / f'data/ml-100k/splits/{"timestamp" if timestamp else "random"}'
+  folder = ROOT / f'data/ml-100k/splits/{split}'
   # If files don't exist create them
   if not folder.exists():
     folder.mkdir(parents=True)
@@ -145,7 +189,14 @@ def load_ratings_100k(timestamp=False, test_pct=1e-1) -> Tuple:
     save_index_mapping_to(folder / 'movie_to_index.txt', movie_to_index)
 
     # Splits
-    train_df, test_df = split_by_timestamp(ratings, test_pct) if timestamp else split_at_random(ratings, test_pct)
+    if split == 'random':
+      train_df, test_df = split_at_random(ratings, test_pct)
+    elif split == 'timestamp':
+      train_df, test_df = split_by_timestamp(ratings)
+    elif split == 'sequence':
+      train_df, test_df = split_by_sequence(ratings)
+    else:
+      raise Exception('Split method not recognized')
 
     # Stores
     train_df.to_csv(folder / 'train_df.csv', index=False)
@@ -166,8 +217,8 @@ def load_ratings_100k(timestamp=False, test_pct=1e-1) -> Tuple:
   return (
     pd.read_csv(folder / 'train_df.csv'),
     pd.read_csv(folder / 'test_df.csv'),
-    load_index_mapping_from(folder / 'user_to_index.txt'),
-    load_index_mapping_from(folder / 'movie_to_index.txt'),
+    load_mapping_to_index_from(folder / 'user_to_index.txt'),
+    load_mapping_to_index_from(folder / 'movie_to_index.txt'),
     movie_to_title
   )
 

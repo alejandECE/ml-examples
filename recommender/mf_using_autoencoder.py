@@ -1,4 +1,4 @@
-#  Created by Luis Alejandro (alejand@umich.edu).
+#  Created by Luis A. Sanchez-Perez (l.alejandro.2011@gmail.com).
 #  Copyright © Do not distribute or use without authorization from author
 
 import utils
@@ -159,7 +159,7 @@ class UserBasedAutoRec(tf.Module):
             f"Test Loss {tf.sqrt(test_loss):.2f}")
 
   @tf.function
-  def find_ratings_for_user(self, ratings: tf.Tensor):
+  def find_missing_ratings_for_user(self, ratings: tf.Tensor):
     return {'scores': self.autoencoder(ratings)}
 
 
@@ -197,7 +197,7 @@ def main(parser):
     timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     path = ROOT / f'models/{model.__class__.__name__}/' / timestamp / str(args.serving)
     tf.saved_model.save(model, str(path), signatures={
-      'serving_users_scoring': model.find_ratings_for_user.get_concrete_function(
+      'serving_users_scoring': model.find_missing_ratings_for_user.get_concrete_function(
         ratings=tf.TensorSpec(shape=(model.num_movies,), dtype=tf.float32)
       )
     })
