@@ -101,15 +101,6 @@ def split_by_sequence(ratings: pd.DataFrame, length: int = 5) -> Tuple[pd.DataFr
   # Groups by user
   groups = ratings.groupby(by='userId', group_keys=False)
 
-  # Selects only the last rating from each user as the test set
-  test_df = groups.progress_apply(
-    lambda entry: entry.iloc[[-1], :]
-  ).drop(columns=['rating', 'timestamp'])
-  test_df.rename(columns={'movieId': 'target'}, inplace=True)
-
-  # Builds sequences for training
-  train_df = groups.progress_apply(lambda entry: entry.iloc[:-1, :])
-
   def generate_sequences(user_data):
     user = user_data['userId'].values[0]
     movies = user_data['movieId'].values
@@ -123,7 +114,13 @@ def split_by_sequence(ratings: pd.DataFrame, length: int = 5) -> Tuple[pd.DataFr
       columns=['userId'] + [str(i) for i in range(length)] + ['target']
     )
 
-  train_df = train_df.groupby(by='userId', group_keys=False).progress_apply(generate_sequences)
+  # Builds sequences
+  sequence_df = ratings.groupby(by='userId', group_keys=False).progress_apply(generate_sequences)
+
+  # Splits
+  groups = sequence_df.groupby(by='userId', group_keys=False)
+  train_df = groups.progress_apply(lambda data: data.iloc[:-1, :])
+  test_df = groups.progress_apply(lambda data: data.iloc[-1, :])
 
   return train_df, test_df
 
